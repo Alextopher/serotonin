@@ -1,0 +1,9 @@
+MODULE example
+
+PRIVATE
+
+PUBLIC
+
+main 0:0 == 97 print;
+
+END
