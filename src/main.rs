@@ -1,49 +1,45 @@
-mod parse;
-mod stdlib;
-mod gen;
+use std::{io::Read, collections::HashMap};
 
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
+use untitled::{parse::{parser, AstNode}, stdlib, gen};
 
-use std::io::Read;
 
-use parse::parser;
+fn compile(contents: &str) -> HashMap<String, String> {
+    // add built-in functions
+    let mut compiled = stdlib::builtin();
 
-use crate::parse::AstNode;
+    // compile the standard library
+    stdlib::load_lib(&mut compiled);
 
-fn main() {
-    // First argument is the file to parse
-    let args: Vec<String> = std::env::args().collect();
-
-    // Read the file
-    let mut file = std::fs::File::open(&args[1]).unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    
-    // compiled functions
-    let compiled = &mut stdlib::builtin();
-
+    // build the AST
     let root = parser(&contents);
-
-    if let AstNode::Compound(name, private, public) = root {
+    if let AstNode::Compound(_name, private, public) = root {
         // merge the private definitions into the definitions
         for definition in private {
             // compile the definition
             let name = &definition.get_name();
-            let code = gen::gen_bf(definition, compiled);
+            let code = gen::gen_bf(definition, &compiled);
             compiled.insert(name.to_string(), code);
         }
 
         // merge the public definitions into the definitions
         for definition in public {
             let name = &definition.get_name();
-            let code = gen::gen_bf(definition, compiled);
+            let code = gen::gen_bf(definition, &compiled);
             compiled.insert(name.to_string(), code);
         }
-
-        println!("Loaded \"{}\"", name);
     }
+
+    compiled
+}
+
+fn main() {   
+    let mut args = std::env::args();
+    let file_name = args.nth(1).unwrap();    
+    let mut file = std::fs::File::open(file_name).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    let compiled = compile(&contents);
 
     // Print the main function
     if let Some(code) = compiled.get("main") {

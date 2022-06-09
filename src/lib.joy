@@ -1,0 +1,11 @@
+MODULE lib
+
+PRIVATE
+
+PUBLIC
+
+# pop (a -- )
+# prints a to stdout and then drops it
+pop 1:0 == print drop;
+
+END

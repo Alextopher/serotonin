@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use pest::{iterators::Pair, Parser};
 
@@ -34,13 +34,24 @@ impl AstNode {
     }
 }
 
+fn parse_byte(pair: Pair<Rule>) -> AstNode {
+    // integer is either in the form 0x[0-9a-fA-F]+ or [0-9]+
+    let result = if pair.as_str().len() > 2 && pair.as_str()[0..2] == *"0x" {
+        let hex = &pair.as_str()[2..];
+        u8::from_str_radix(hex, 16).unwrap()
+    } else {
+        u8::from_str_radix(&pair.as_str(), 10).unwrap()
+    };
+
+    AstNode::Byte(result)
+}
+
 fn parse_term(pair: Pair<Rule>) -> Vec<AstNode> {
     let mut terms: Vec<AstNode> = Vec::new();
     for term in pair.into_inner() {
         match term.as_rule() {
             Rule::term => terms.push(AstNode::Term(parse_term(term))),
-            Rule::integer_constant => terms.push(AstNode::Byte(term.as_str().parse().unwrap())),
-            Rule::byte_constant => terms.push(AstNode::Byte(term.as_str().parse().unwrap())),
+            Rule::integer_constant => terms.push(parse_byte(term)),
             Rule::atomic_symbol => terms.push(AstNode::Atomic(term.as_str().to_string())),
             _ => unreachable!(),
         }
@@ -111,7 +122,6 @@ pub fn parser(contents: &str) -> AstNode {
     // Parse the input file
     let pairs = UTParser::parse(Rule::program, &contents).unwrap_or_else(|e| panic!("{}", e));
 
-    // Print the AST
     let mut root: AstNode = AstNode::Atomic("".to_string());
 
     for pair in pairs {
@@ -124,4 +134,22 @@ pub fn parser(contents: &str) -> AstNode {
     }
 
     root
+}
+
+pub fn parse_single_definition(content: &str) -> Box<AstNode> {
+    // parse and compile the single function
+    let pairs = UTParser::parse(Rule::single_def, content).unwrap_or_else(|e| panic!("{}", e));
+
+    let mut definition: Box<AstNode> = Box::new(AstNode::Atomic("".to_string()));
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::simple_definition => {
+                definition = parse_simple_definition(pair);
+            },
+            _ => {}
+        }
+    }
+
+    definition
 }

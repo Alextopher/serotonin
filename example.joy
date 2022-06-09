@@ -4,6 +4,6 @@ PRIVATE
 
 PUBLIC
 
-main 0:0 == 97 print;
+main 0:0 == 0x01 print;
 
 END

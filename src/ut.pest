@@ -3,17 +3,16 @@
 
 program = _{ SOI ~ compound_definition ~ EOI }
 
+// alternative starting point if we want to compile a single function
+single_def = _{ SOI ~ simple_definition ~ EOI }
+
 // Reserved character
 reserved_character = { "[" | "]" | "{" | "}" | ";" | "." }
 
 // Integer of any length
 integer_constant = @{ 
-    ASCII_DIGIT+
-}
-
-// Bytes will be useful
-byte_constant = @{
-    "0x" ~ ASCII_HEX_DIGIT ~ ASCII_HEX_DIGIT
+    ("0x" ~ ASCII_HEX_DIGIT ~ ASCII_HEX_DIGIT)
+    | (ASCII_DIGIT+)
 }
 
 // Reserved words
@@ -33,7 +32,7 @@ atomic_symbol = @{
 
 factor = _{
     atomic_symbol
-    | integer_constant | byte_constant
+    | integer_constant 
     // TODO: can I make sets? | ("{" ~ integer_constant ~ "}")
     | ("[" ~ term ~ "]") 
 }

@@ -1,5 +1,10 @@
 use std::collections::HashMap;
 
+use crate::{parse::{AstNode, parser}, gen};
+
+// Read src/lib.joy into a string at compile time
+static LIBRARY: &'static str = include_str!(concat!("lib.joy"));
+
 // create hashmap of standard library functions
 pub fn builtin() -> HashMap<String, String> {
     let mut stdlib = HashMap::new();
@@ -63,6 +68,14 @@ pub fn builtin() -> HashMap<String, String> {
     // --------------------------------------------------
     stdlib.insert("read", ">,");
 
+    // inc (a -- a+1)
+    // --------------------------------------------------
+    stdlib.insert("inc", "+");
+
+    // dec (a -- a-1)
+    // --------------------------------------------------
+    stdlib.insert("dec", "-");
+
     // + (a b -- a+b)
     // --------------------------------------------------
     //                  -    a *b
@@ -83,4 +96,27 @@ pub fn builtin() -> HashMap<String, String> {
         string_lib.insert(key.to_string(), value.to_string());
     }
     string_lib
+}
+
+
+// more complex functions are written using the bultins
+pub fn load_lib(compiled: &mut HashMap<String, String>) {
+    let root = parser(&LIBRARY);
+
+    if let AstNode::Compound(_name, private, public) = root {
+        // merge the private definitions into the definitions
+        for definition in private {
+            // compile the definition
+            let name = &definition.get_name();
+            let code = gen::gen_bf(definition, compiled);
+            compiled.insert(name.to_string(), code);
+        }
+
+        // merge the public definitions into the definitions
+        for definition in public {
+            let name = &definition.get_name();
+            let code = gen::gen_bf(definition, compiled);
+            compiled.insert(name.to_string(), code);
+        }
+    }
 }
