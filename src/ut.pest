@@ -1,0 +1,79 @@
+// based on the joy programming language
+// https://hypercubed.github.io/joy/html/j09imp.html
+
+program = _{ SOI ~ compound_definition ~ EOI }
+
+// Reserved character
+reserved_character = { "[" | "]" | "{" | "}" | ";" | "." }
+
+// Integer of any length
+integer_constant = @{ 
+    ASCII_DIGIT+
+}
+
+// Bytes will be useful
+byte_constant = @{
+    "0x" ~ ASCII_HEX_DIGIT ~ ASCII_HEX_DIGIT
+}
+
+// Reserved words
+reserved_word = _{ "==" | "MODULE" | "PRIVATE" | "PUBLIC" | "END" }
+
+// atomic-symbol
+// any printing character which is not a reserved character or a digit or the single or double quote character
+// followed letters, digits, and some symbols
+atomic_symbol = @{
+    !( reserved_character | ASCII_DIGIT | "\"" | "'" ) ~ ANY
+    ~ (ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" )*
+}
+
+// in joy there are float constants character constants and string constants
+// which have no matching part in my langauge
+//token = _{ reserved_character | reserved_word | integer_constant | atomic_symbol }
+
+factor = _{
+    atomic_symbol
+    | integer_constant | byte_constant
+    // TODO: can I make sets? | ("{" ~ integer_constant ~ "}")
+    | ("[" ~ term ~ "]") 
+}
+
+// a term is any number of factors
+term = { factor* }
+
+// unlike joy were are going to have some kind of "static type checking"
+// for example:
+//      add 2:1 == +
+// means that the "add" function consumes two bytes and then produces one result
+// this might mean that we can no longer have functions that take arbitary numbers of arguments
+// but we are better able to graple with the issues presented by BF
+simple_definition = {
+    atomic_symbol ~ integer_constant ~ ":" ~ integer_constant ~ "==" ~ term
+}
+
+compound_definition = {
+    "MODULE" ~ atomic_symbol ~
+    "PRIVATE" ~ definition_sequence ~
+    "PUBLIC" ~ definition_sequence ~
+    "END"
+}
+
+// tweaked from the original joy language where
+//      definition_sequence = { definition ~ (";" ~ definition)* }
+// because I like the idea of having empty definition sequences
+definition_sequence = {
+    (simple_definition ~ ";")*
+}
+
+/*
+There are two kinds of comments, block comments taking the form:
+
+(* this is a 
+long comment *) 
+
+and line comments taking the form 
+
+# this is a comment.
+*/
+COMMENT = _{ ("(*" ~ (!"*)" ~ ANY)* ~ "*)") | ("#" ~ (!"\n" ~ ANY)* ~ "\n") }
+WHITESPACE = _{ " " | "\t" | "\n" }
