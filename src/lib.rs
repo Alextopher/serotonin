@@ -11,15 +11,16 @@ pub mod gen;
 mod tests {
     extern crate pest;
 
-    use std::num::Wrapping;
+    use std::{num::Wrapping, cmp::max};
 
     use crate::{stdlib, parse, gen};
 
     // a dead simple BF interpreter
-    fn run(bf: &str, input: Vec<Wrapping<u8>>) -> Vec<Wrapping<u8>> {
+    fn run(bf: &str, input: Vec<Wrapping<u8>>) -> (Vec<Wrapping<u8>>, [Wrapping<u8>; 65536], usize) {
         // tape is maxiumum of 2^16 cells
         let mut tape = [Wrapping(0u8); 65536];
         let mut tape_ptr = 0;
+        let mut max_tape_ptr = 0;
         let mut inst_ptr = 0;
 
         let mut input_ptr = 0;
@@ -29,7 +30,10 @@ mod tests {
         while inst_ptr < bf.len() {
             let c = bf.as_bytes()[inst_ptr];
             match c {
-                b'>' => tape_ptr += 1,
+                b'>' => {
+                    tape_ptr += 1;
+                    max_tape_ptr = max(max_tape_ptr, tape_ptr);
+                },
                 b'<' => tape_ptr -= 1,
                 b'+' => tape[tape_ptr] += 1,
                 b'-' => tape[tape_ptr] -= 1,
@@ -77,10 +81,21 @@ mod tests {
             inst_ptr += 1;
         }
 
-        output
+        (output, tape, max_tape_ptr)
     }
 
-    fn simple_test(joy: String, input: Vec<Wrapping<u8>>, output: Vec<Wrapping<u8>>) {
+    fn verify_tape(tape: [Wrapping<u8>; 65536], max_tape_ptr: usize) -> Option<usize> {
+        // verifies the tape is set to zeros
+        for i in 0..max_tape_ptr {
+            if tape[i] != Wrapping(0) {
+                return Some(i);
+            }
+        }
+
+        None
+    }
+
+    fn single_test(joy: String, input: Vec<Wrapping<u8>>, output: Vec<Wrapping<u8>>) {
         // add built-in functions
         let mut compiled = stdlib::builtin();
 
@@ -94,9 +109,15 @@ mod tests {
         let code = gen::gen_bf(definition, &compiled);
 
         // run the code
-        let result = run(code.as_str(), input);
+        let (result, tape, max_tape) = run(code.as_str(), input.clone());
 
-        assert_eq!(result, output, "Expected output {:?} but got {:?}", output, result);
+        // verify the tape is set to zeros
+        match verify_tape(tape, max_tape) {
+            Some(i) => panic!("Input: {:?}: Tape is {} at {}", input, tape[i], i),
+            None => {}
+        }
+
+        assert_eq!(result, output, "Input {:?}: Expected output {:?} but got {:?}", input, output, result);
     }
 
     fn multiple_test(joy: String, inputs: Vec<Vec<Wrapping<u8>>>, outputs: Vec<Vec<Wrapping<u8>>>) {
@@ -115,8 +136,15 @@ mod tests {
 
         // run the code
         for (input, output) in inputs.iter().zip(outputs.iter()) {
-            let result = run(&s, input.clone());
-            assert_eq!(result, output.clone(), "Expected output {:?} but got {:?}", output, result);
+            let (result, tape, max_tape) = run(&s, input.clone());
+
+            // verify the tape is set to zeros
+            match verify_tape(tape, max_tape) {
+                Some(i) => panic!("Input {:?}: Tape is {} at {}", input, tape[i], i),
+                None => {}
+            }
+    
+            assert_eq!(result, output.clone(), "Input {:?} expected output {:?} but got {:?}", input, output, result);
         }
     }
 
@@ -125,10 +153,10 @@ mod tests {
         // test creating all possible integers
         for i in (0u8..=255).map(Wrapping) {
             // main 0:1 == N print;
-            let code = format!("main 0:1 == {} print", i);
+            let code = format!("main 0:1 == {} pop", i);
             let input = vec![];
             let output = vec![i];
-            simple_test(code, input, output);
+            single_test(code, input, output);
         }
     }
 
@@ -137,17 +165,17 @@ mod tests {
         // test creating all possible hexadecimal numbers
         for i in (0u8..=255).map(Wrapping) {
             // main 0:1 == N print;
-            let code = format!("main 0:1 == {:#04x} print", i);
+            let code = format!("main 0:1 == {:#04x} pop", i);
             println!("{}", code);
             let input = vec![];
             let output = vec![i];
-            simple_test(code, input, output);
+            single_test(code, input, output);
         }
     }
 
     #[test]
     fn text_read_pop() {
-        let code = format!{"main 0:0 == read read - pop"};
+        let code = format!{"main 0:0 == read read pop pop"};
         let mut inputs = Vec::new();
         let mut outputs = Vec::new();
         
@@ -155,7 +183,7 @@ mod tests {
         for i in (0u8..=255).map(Wrapping) {
             for j in (0u8..=255).map(Wrapping) {
                 inputs.push(vec![i, j]);
-                outputs.push(vec![i - j]);
+                outputs.push(vec![j, i]);
             }
         }
 
@@ -181,17 +209,19 @@ mod tests {
 
     #[test]
     fn test_sub() {
+        let code = format!{"main 0:0 == read read - pop"};
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+        
         // there are 256x256 = 65536 possible combinations of 2 numbers
-        // I will test all of them (both ways)
         for i in (0u8..=255).map(Wrapping) {
             for j in (0u8..=255).map(Wrapping) {
-                // main 0:1 == N print;
-                let code = format!("main 0:1 == {} {} - print", i, j);
-                let input = vec![];
-                let output = vec![i - j];
-                simple_test(code, input, output);
+                inputs.push(vec![i, j]);
+                outputs.push(vec![i - j]);
             }
         }
+
+        multiple_test(code, inputs, outputs);
     }
 
     #[test]
@@ -295,5 +325,80 @@ mod tests {
         }
 
         multiple_test(code, inputs, outputs);
+    }
+
+    #[test]
+    fn test_eq() {
+        let code = format!("main 0:0 == read read eq pop");
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+
+        // test comparing all numbers
+        for i in (0u8..=255).map(Wrapping) {
+            for j in (0u8..=255).map(Wrapping) {
+                inputs.push(vec![i, j]);
+                outputs.push(vec![if i == j { Wrapping(1) } else { Wrapping(0) }]);
+            }
+        }
+
+        multiple_test(code, inputs, outputs);
+    }
+
+    #[test]
+    fn test_not() {
+        let code = format!("main 0:0 == read not pop");
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+
+        // test inverting all numbers
+        for i in (0u8..=255).map(Wrapping) {
+            inputs.push(vec![i]);
+            outputs.push(vec![if i == Wrapping(0) { Wrapping(1) } else { Wrapping(0) }]);
+        }
+
+        multiple_test(code, inputs, outputs);
+    }
+
+    #[test]
+    fn test_neq() {
+        let code = format!("main 0:0 == read read neq pop");
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+
+        // test comparing all numbers
+        for i in (0u8..=255).map(Wrapping) {
+            for j in (0u8..=255).map(Wrapping) {
+                inputs.push(vec![i, j]);
+                outputs.push(vec![if i != j { Wrapping(1) } else { Wrapping(0) }]);
+            }
+        }
+
+        multiple_test(code, inputs, outputs);
+    }
+
+    #[test]
+    fn test_ifte() {
+        let code = format!("main 0:0 == read [read eq] [inc pop] [dec pop] ifte");
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+
+        // test many comparisons
+        for i in (0u8..=255).map(Wrapping) {
+            for j in (0u8..=255).map(Wrapping) {
+                inputs.push(vec![i, j]);
+                outputs.push(vec![if i == j { i + Wrapping(1) } else { i - Wrapping(1) }]);
+            }
+        }
+
+        multiple_test(code, inputs, outputs);
+    }
+
+    #[test]
+    fn test_while() {
+        let code = format!("main 0:0 == print 1 [0 neq] [print dup +] while");
+        let input = vec![];
+        let output = vec![Wrapping(0), Wrapping(1), Wrapping(2), Wrapping(4), Wrapping(8), Wrapping(16), Wrapping(32), Wrapping(64), Wrapping(128)];
+
+        single_test(code, input, output);
     }
 }

@@ -19,6 +19,16 @@ pub fn builtin() -> HashMap<String, String> {
     // <            -  a *a
     stdlib.insert("dup", ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<");
 
+    // // dup2 (a -- a a a)
+    // // copies the top of the stack twice
+    // // --------------------------------------------------
+    // //                 - *a
+    // // >[-]>[-]>[-]    -  a  0  0 *0
+    // // <<<[->+>+>+<<<] - *0  a  a  a
+    // // >>>[-<<<+>>>]   -  a  a  a *0
+    // // <               -  a  a *a
+    // stdlib.insert("dup2", ">[-]>[-]>[-]<<<[->+>+>+<<<]>>>[-<<<+>>>]<");
+
     // drop (a -- )
     // removes the top of the stack
     // --------------------------------------------------
@@ -89,6 +99,40 @@ pub fn builtin() -> HashMap<String, String> {
     // [-<->]           -  a-b *0
     // <                = *a-b
     stdlib.insert("-", "[-<->]<");
+
+    // eq (a b -- a==b)
+    // returns 0 if a != b, 1 if a == b
+    // x[-y-x]+y[x-y[-]]
+    // https://esolangs.org/wiki/Brainfuck_algorithms#Wrapping_8
+    // --------------------------------------------------
+    stdlib.insert("eq", "<[->-<]+>[<->[-]]<");
+
+    // not (a -- !a)
+    // temp0[-]+x[-temp0-]temp0[x+temp0-]
+    // https://esolangs.org/wiki/Brainfuck_algorithms#x_.3D_not_x_.28boolean.2C_logical.29
+    // --------------------------------------------------
+    //                  - *a
+    // >[-]+<           - *a 1
+    // [                - if a != 0
+    //   [-]            - *0 1
+    //   >-<            - *0 0
+    // ]                - end if
+    // >[<+>-]          - add temp to a
+    // <                - *!a
+    stdlib.insert("not", ">[-]+<[[-]>-<]>[<+>-]<");
+
+    // shift (a ? -- a b)
+    // this is an unsafe operator and it just shifts the stack up by one
+    // useful for testing but USE WITH CAUTION
+    // --------------------------------------------------
+    stdlib.insert("shift", ">");
+
+    // unshift (a b -- a ?)
+    // this is an unsafe operator and it just shifts the stack down by one
+    // unlike drop it does not remove the top element
+    // useful for testing but USE WITH CAUTION
+    // --------------------------------------------------
+    stdlib.insert("unshift", "<");
 
     // create a String - String hashmap
     let mut string_lib = HashMap::new();

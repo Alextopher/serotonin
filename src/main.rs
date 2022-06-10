@@ -1,7 +1,5 @@
 use std::{io::Read, collections::HashMap};
-
-use untitled::{parse::{parser, AstNode}, stdlib, gen};
-
+use untitled::{parse::{parser, AstNode}, stdlib, gen::gen_bf};
 
 fn compile(contents: &str) -> HashMap<String, String> {
     // add built-in functions
@@ -17,14 +15,14 @@ fn compile(contents: &str) -> HashMap<String, String> {
         for definition in private {
             // compile the definition
             let name = &definition.get_name();
-            let code = gen::gen_bf(definition, &compiled);
+            let code = gen_bf(definition, &compiled);
             compiled.insert(name.to_string(), code);
         }
 
         // merge the public definitions into the definitions
         for definition in public {
             let name = &definition.get_name();
-            let code = gen::gen_bf(definition, &compiled);
+            let code = gen_bf(definition, &compiled);
             compiled.insert(name.to_string(), code);
         }
     }
