@@ -1,33 +1,15 @@
-use std::{io::Read, collections::HashMap};
-use untitled::{parse::{parser, AstNode}, stdlib, gen::gen_bf};
+use std::io::Read;
+use untitled::{parse, gen::Gen};
 
-fn compile(contents: &str) -> HashMap<String, String> {
+fn compile(contents: &str) -> String {
     // add built-in functions
-    let mut compiled = stdlib::builtin();
-
-    // compile the standard library
-    stdlib::load_lib(&mut compiled);
+    let mut gen = Gen::builtins();
 
     // build the AST
-    let root = parser(&contents);
-    if let AstNode::Compound(_name, private, public) = root {
-        // merge the private definitions into the definitions
-        for definition in private {
-            // compile the definition
-            let name = &definition.get_name();
-            let code = gen_bf(definition, &compiled);
-            compiled.insert(name.to_string(), code);
-        }
+    let compound = parse::parser(contents);
 
-        // merge the public definitions into the definitions
-        for definition in public {
-            let name = &definition.get_name();
-            let code = gen_bf(definition, &compiled);
-            compiled.insert(name.to_string(), code);
-        }
-    }
-
-    compiled
+    // generate all the functions in compound and return "main"
+    gen.gen(compound)
 }
 
 fn main() {   
@@ -37,12 +19,11 @@ fn main() {
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
 
-    let compiled = compile(&contents);
+    let main = compile(&contents);
 
-    // Print the main function
-    if let Some(code) = compiled.get("main") {
-        println!("{}", code);
+    if main == "" {
+        eprintln!("Missing function \"main\"");
     } else {
-        panic!("No main function defined");
+        println!("{main}")
     }
 }

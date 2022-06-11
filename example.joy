@@ -4,6 +4,6 @@ PRIVATE
 
 PUBLIC
 
-main 0:0 == 0 [255 neq] [print 3 +] while;
+main 0:0 == 1;
 
 END

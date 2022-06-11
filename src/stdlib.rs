@@ -1,12 +1,16 @@
 use std::collections::HashMap;
 
-use crate::{parse::{AstNode, parser}, gen};
+use crate::parse::Ty;
 
 // Read src/lib.joy into a string at compile time
-static LIBRARY: &'static str = include_str!(concat!("lib.joy"));
+pub(crate) static LIBRARY: &'static str = include_str!("lib.joy");
+
+fn def(pops: i64, pushes: i64, code: &str) -> (String, Ty) {
+    (code.into(), Ty { pops, pushes })
+}
 
 // create hashmap of standard library functions
-pub fn builtin() -> HashMap<String, String> {
+pub fn builtin() -> HashMap<String, (String, Ty)> {
     let mut stdlib = HashMap::new();
 
     // dup (a -- a a)
@@ -17,17 +21,7 @@ pub fn builtin() -> HashMap<String, String> {
     // <<[->+>+<<]  - *0  a  a
     // >>[-<<+>>]   -  a  a *0
     // <            -  a *a
-    stdlib.insert("dup", ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<");
-
-    // // dup2 (a -- a a a)
-    // // copies the top of the stack twice
-    // // --------------------------------------------------
-    // //                 - *a
-    // // >[-]>[-]>[-]    -  a  0  0 *0
-    // // <<<[->+>+>+<<<] - *0  a  a  a
-    // // >>>[-<<<+>>>]   -  a  a  a *0
-    // // <               -  a  a *a
-    // stdlib.insert("dup2", ">[-]>[-]>[-]<<<[->+>+>+<<<]>>>[-<<<+>>>]<");
+    stdlib.insert("dup", def(1, 2, ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<"));
 
     // drop (a -- )
     // removes the top of the stack
@@ -35,7 +29,7 @@ pub fn builtin() -> HashMap<String, String> {
     //              - *a
     // [-]          - *0
     // <            -
-    stdlib.insert("drop", "[-]<");
+    stdlib.insert("drop", def(1, 0, "[-]<"));
 
     // swap (a b -- b a)
     // swaps the top two elements of the stack
@@ -46,7 +40,7 @@ pub fn builtin() -> HashMap<String, String> {
     // >[-<+>]      -  b *0  a
     // >[-<+>]      -  b  a *0
     // <            -  b *a
-    stdlib.insert("swap", ">[-]<<[->>+<<]>[-<+>]>[-<+>]<");
+    stdlib.insert("swap", def(2, 2, ">[-]<<[->>+<<]>[-<+>]>[-<+>]<"));
 
     // over (a b -- a b a)
     // --------------------------------------------------
@@ -55,7 +49,7 @@ pub fn builtin() -> HashMap<String, String> {
     // <<<[->>+>+<<<]   - *0  b  a  a
     // >>>[-<<<+>>>]    -  a  b  a *0
     // <                -  a  b *a
-    stdlib.insert("over", ">[-]>[-]<<<[->>+>+<<<]>>>[-<<<+>>>]<");
+    stdlib.insert("over", def(2, 3, ">[-]>[-]<<<[->>+>+<<<]>>>[-<<<+>>>]<"));
 
     // rot (a b c -- b c a)
     // --------------------------------------------------
@@ -66,46 +60,46 @@ pub fn builtin() -> HashMap<String, String> {
     // >[-<+>]          -  b  c *0  a
     // >[-<+>]          -  b  c  a *0
     // <                -  b  c *a
-    stdlib.insert("rot", ">[-]<<<[->>>+<<<]>[-<+>]>[-<+>]>[-<+>]<");
+    stdlib.insert("rot",  def(3, 3, ">[-]<<<[->>>+<<<]>[-<+>]>[-<+>]>[-<+>]<"));
 
     // print (a -- a)
     // prints a to stdout
     // --------------------------------------------------
-    stdlib.insert("print", ".");
+    stdlib.insert("print", def(1, 1, "."));
 
     // read ( -- a)
     // reads a from the stdin
     // --------------------------------------------------
-    stdlib.insert("read", ">,");
+    stdlib.insert("read", def(0, 1, ">,"));
 
     // inc (a -- a+1)
     // --------------------------------------------------
-    stdlib.insert("inc", "+");
+    stdlib.insert("inc", def(1,1,"+"));
 
     // dec (a -- a-1)
     // --------------------------------------------------
-    stdlib.insert("dec", "-");
+    stdlib.insert("dec", def(1,1,"-"));
 
     // + (a b -- a+b)
     // --------------------------------------------------
     //                  -    a *b
     // [-<+>]           -  a+b *0
     // <                - *a+b
-    stdlib.insert("+", "[-<+>]<");
+    stdlib.insert("+", def(2, 1, "[-<+>]<"));
 
     // - (a b -- a-b)
     // --------------------------------------------------
     //                  -    a *b
     // [-<->]           -  a-b *0
     // <                = *a-b
-    stdlib.insert("-", "[-<->]<");
+    stdlib.insert("-", def(2, 1, "[-<->]<"));
 
     // eq (a b -- a==b)
     // returns 0 if a != b, 1 if a == b
     // x[-y-x]+y[x-y[-]]
     // https://esolangs.org/wiki/Brainfuck_algorithms#Wrapping_8
     // --------------------------------------------------
-    stdlib.insert("eq", "<[->-<]+>[<->[-]]<");
+    stdlib.insert("eq", def(2, 1, "<[->-<]+>[<->[-]]<"));
 
     // not (a -- !a)
     // temp0[-]+x[-temp0-]temp0[x+temp0-]
@@ -119,48 +113,25 @@ pub fn builtin() -> HashMap<String, String> {
     // ]                - end if
     // >[<+>-]          - add temp to a
     // <                - *!a
-    stdlib.insert("not", ">[-]+<[[-]>-<]>[<+>-]<");
+    stdlib.insert("not", def(1, 1, ">[-]+<[[-]>-<]>[<+>-]<"));
 
-    // shift (a ? -- a b)
+    // shift (? -- a)
     // this is an unsafe operator and it just shifts the stack up by one
     // useful for testing but USE WITH CAUTION
     // --------------------------------------------------
-    stdlib.insert("shift", ">");
+    stdlib.insert("shift", def(0, 1, ">"));
 
     // unshift (a b -- a ?)
     // this is an unsafe operator and it just shifts the stack down by one
     // unlike drop it does not remove the top element
     // useful for testing but USE WITH CAUTION
     // --------------------------------------------------
-    stdlib.insert("unshift", "<");
+    stdlib.insert("unshift", def(1, 0, "<"));
 
     // create a String - String hashmap
     let mut string_lib = HashMap::new();
     for (key, value) in stdlib {
-        string_lib.insert(key.to_string(), value.to_string());
+        string_lib.insert(key.to_string(), value);
     }
     string_lib
-}
-
-
-// more complex functions are written using the bultins
-pub fn load_lib(compiled: &mut HashMap<String, String>) {
-    let root = parser(&LIBRARY);
-
-    if let AstNode::Compound(_name, private, public) = root {
-        // merge the private definitions into the definitions
-        for definition in private {
-            // compile the definition
-            let name = &definition.get_name();
-            let code = gen::gen_bf(definition, compiled);
-            compiled.insert(name.to_string(), code);
-        }
-
-        // merge the public definitions into the definitions
-        for definition in public {
-            let name = &definition.get_name();
-            let code = gen::gen_bf(definition, compiled);
-            compiled.insert(name.to_string(), code);
-        }
-    }
 }
