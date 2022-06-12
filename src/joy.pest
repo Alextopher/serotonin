@@ -1,0 +1,78 @@
+// based on the joy programming language
+// https://hypercubed.github.io/joy/html/j09imp.html
+
+// INCLUDE stdlib math;
+// PRIVATE
+//   defs;
+//   defs;
+// PUBLIC
+//   defs;
+module = {
+    SOI ~
+    includes? ~
+    ("PRIVATE" ~ definition_sequence ~ "PUBLIC")? ~
+    definition_sequence ~
+    EOI?
+}
+
+includes = {
+    "INCLUDE" ~ atomic* ~ ";"
+}
+
+// alternative starting point if we want to compile a single function
+single_definition = _{ SOI ~ definition ~ EOI }
+
+// Reserved character
+reserved_character = { "[" | "]" | "{" | "}" | ";" | "." }
+
+// Integer of any length
+integer = @{ 
+    ("0x" ~ ASCII_HEX_DIGIT ~ ASCII_HEX_DIGIT)
+    | (ASCII_DIGIT+)
+}
+
+// handles strings
+string = ${ "\"" ~ (char | escaped | escaped_hex )* ~ "\"" }
+char = { !("\"" | "\\") ~ ANY }
+escaped = { "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t") }
+escaped_hex = { "\\" ~ ("x" ~ ASCII_HEX_DIGIT{2}) }
+
+// Reserved words
+reserved_word = _{ "==" | "MODULE" | "PRIVATE" | "PUBLIC" | "END" }
+
+// atomic-symbol
+// any printing character which is not a reserved character or a digit or the single or double quote character
+// followed letters, digits, and some symbols
+atomic = @{
+    !(reserved_character | ASCII_DIGIT | "\"" | "'" ) ~ ANY
+    ~ (ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" )*
+}
+
+factor = _{
+    atomic
+    | integer 
+    | string
+    // TODO: can I make sets? | ("{" ~ integer_constant ~ "}")
+    | ("[" ~ term ~ "]") 
+}
+
+// a term is any number of factors
+term = { factor* }
+
+// maybe add type checking in the future?
+definition = {
+    atomic ~ "==" ~ term
+}
+
+// tweaked from the original joy language where
+//      definition_sequence = { definition ~ (";" ~ definition)* }
+// because I like the idea of having empty definition sequences
+definition_sequence = {
+    (definition ~ ";")*
+}
+
+/*
+# this is a comment.
+*/
+COMMENT = _{ ("#" ~ (!"\n" ~ ANY)* ~ "\n") }
+WHITESPACE = _{ " " | "\t" | "\n" }

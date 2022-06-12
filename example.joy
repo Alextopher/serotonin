@@ -1,9 +1,5 @@
-MODULE example
+INCLUDE std;
 
-PRIVATE
+main == "hello world!" [] [pop] while;
 
-PUBLIC
-
-main 0:0 == 1;
-
-END
+main == "hello world!" [] [pop] while;

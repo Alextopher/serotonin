@@ -1,5 +1,5 @@
 [package]
-name = "untitled"
+name = "bfjoy"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 pest = "2.0"
 pest_derive = "2.0"
-rand = "0.8.5"
 num = "0.4.0"
+include_dir = "0.7.2"
