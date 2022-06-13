@@ -11,7 +11,7 @@ module = {
     SOI ~
     imports? ~
     definition_sequence ~
-    EOI?
+    EOI
 }
 
 imports = {
@@ -22,7 +22,7 @@ imports = {
 single_definition = _{ SOI ~ definition ~ EOI }
 
 // Reserved character
-reserved_character = { "[" | "]" | "{" | "}" | ";" | "." }
+reserved_character = { "[" | "]" | "{" | "}" | ";" }
 
 // Integer of any length
 integer = @{ 
@@ -43,8 +43,8 @@ reserved_word = _{ "==" | "MODULE" | "PRIVATE" | "PUBLIC" | "END" }
 // any printing character which is not a reserved character or a digit or the single or double quote character
 // followed letters, digits, and some symbols
 atomic = @{
-    !(reserved_character | ASCII_DIGIT | "\"" | "'" ) ~ ANY
-    ~ (ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" )*
+    !(reserved_character | ASCII_DIGIT | "\"" | "'" | "." ) ~ ANY
+    ~ (ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "." )*
 }
 
 factor = _{

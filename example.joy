@@ -1,3 +1,0 @@
-IMPORT std test;
-
-main == "hello world!" [print] [pop] while;

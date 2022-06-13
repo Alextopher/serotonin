@@ -1,5 +1,6 @@
 use core::panic;
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     rc::Rc,
 };
@@ -10,7 +11,7 @@ use pest::{
     Parser, Span,
 };
 
-use crate::stdlib::LIBRARIES;
+use crate::stdlib::{self, LIBRARIES};
 
 #[derive(Parser)]
 #[grammar = "joy.pest"]
@@ -48,43 +49,71 @@ impl Module {}
 #[derive(Debug)]
 pub struct Definition {
     name: String,
-    body: AstNode,
+    body: RefCell<AstNode>,
     dependencies: HashSet<String>,
     span: MySpan,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum AstNode {
     Qoutation(Vec<AstNode>),
     Composition(String, Vec<AstNode>),
     // Atomic is a special composition that requires zero qoutations
-    Atomic(String),
+    Atomic(RefCell<String>),
     // Byte is a special composition that adds a single byte to the stack
     Byte(u8),
-    // String is a special composition that adds a string to the stack
-    String(String),
+    // Builtin is a special composition for builtin functions
+    Builtin(String),
+}
+
+impl AstNode {
+    // looks through the body of the definition and updates all atomics to their fully qualified names
+    fn solve_atomic(&mut self, atomic: &str, qualified: &str) {
+        match self {
+            AstNode::Qoutation(compositions) => {
+                for composition in compositions {
+                    composition.solve_atomic(atomic, qualified)
+                }
+            }
+            AstNode::Composition(_, qoutations) => {
+                for qoutation in qoutations {
+                    qoutation.solve_atomic(atomic, qualified)
+                }
+            }
+            AstNode::Atomic(cell) => {
+                cell.replace_with(|f| {
+                    if f == atomic {
+                        qualified.to_string()
+                    } else {
+                        f.to_string()
+                    }
+                });
+            }
+            _ => {}
+        }
+    }
 }
 
 pub struct BFJoyParser<'a> {
     modules: HashMap<String, Rc<Module>>,
     building: Vec<String>,
-    compositions: HashMap<&'a str, usize>,
+    compositions: HashMap<&'a str, (usize, &'a str)>,
+    builtins: HashMap<&'a str, &'a str>,
     inputs: Vec<&'a str>,
+    generated: HashMap<String, String>,
+    constants: Vec<String>,
 }
 
 impl<'a> BFJoyParser<'a> {
     pub fn new() -> BFJoyParser<'a> {
-        // Build composition map
-        let mut compositions = HashMap::new();
-
-        compositions.insert("while", 2);
-        compositions.insert("ifte", 3);
-
         BFJoyParser {
             modules: HashMap::new(),
             building: Vec::new(),
-            compositions,
+            compositions: stdlib::load_compositions(),
+            builtins: stdlib::load_builtins(),
             inputs: Vec::new(),
+            generated: HashMap::new(),
+            constants: stdlib::generate_constants(),
         }
     }
 
@@ -260,7 +289,7 @@ impl<'a> BFJoyParser<'a> {
                         AstNode::Qoutation(qoutations) => stack.extend(qoutations),
                         AstNode::Composition(_, qoutations) => stack.extend(qoutations),
                         AstNode::Atomic(name) => {
-                            dependencies.insert(name.to_string());
+                            dependencies.insert(name.borrow().to_string());
                         }
                         _ => {}
                     }
@@ -268,7 +297,7 @@ impl<'a> BFJoyParser<'a> {
 
                 Ok(Rc::new(Definition {
                     name,
-                    body,
+                    body: RefCell::new(body),
                     dependencies,
                     span,
                 }))
@@ -291,13 +320,13 @@ impl<'a> BFJoyParser<'a> {
                 let name = pair.as_str();
 
                 // check if the composition is in our list of special compositions
-                match self.compositions.get(name) {
-                    Some(qoutations) => {
-                        // slice qoutations off the stack (in reverse order)
-                        let qoutations = stack.split_off(stack.len() - qoutations);
-                        stack.push(AstNode::Composition(name.to_string(), qoutations));
-                    }
-                    None => stack.push(AstNode::Atomic(name.to_string())),
+                if let Some((qoutations, _)) = self.compositions.get(name) {
+                    let qoutations = stack.split_off(stack.len() - qoutations);
+                    stack.push(AstNode::Composition(name.to_string(), qoutations));
+                } else if self.builtins.contains_key(name) {
+                    stack.push(AstNode::Builtin(name.to_string()))
+                } else {
+                    stack.push(AstNode::Atomic(RefCell::new(name.to_string())))
                 }
             }
             Rule::integer => match pair.as_str().parse::<u8>() {
@@ -311,32 +340,128 @@ impl<'a> BFJoyParser<'a> {
                     ))
                 }
             },
-            Rule::string => stack.push(AstNode::String(pair.as_str().to_string())),
+            Rule::string => pair
+                .into_inner()
+                .map(|rule| match rule.as_rule() {
+                    Rule::char => AstNode::Byte(rule.as_str().bytes().next().unwrap()),
+                    Rule::escaped => {
+                        match rule.as_str() {
+                            // "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+                            "\\\\" => AstNode::Byte(b'\\'),
+                            "\\\"" => AstNode::Byte(b'\"'),
+                            "\\b" => AstNode::Byte(8),
+                            "\\f" => AstNode::Byte(12),
+                            "\\n" => AstNode::Byte(b'\n'),
+                            "\\r" => AstNode::Byte(b'\r'),
+                            "\\t" => AstNode::Byte(b'\t'),
+                            _ => unreachable!(),
+                        }
+                    }
+                    Rule::escaped_hex => {
+                        // this is exactly 4 characters, the last two are the hex
+                        AstNode::Byte(u8::from_str_radix(&rule.as_str()[2..], 16).unwrap())
+                    }
+                    _ => unreachable!(),
+                })
+                .chain(vec![AstNode::Byte(0)])
+                .rev()
+                .for_each(|node| stack.push(node)),
             _ => panic!("Unexpected rule {:?} in qoutation", pair.as_str()),
         };
 
         None
     }
 
+    pub fn generate(&mut self, module: Rc<Module>) -> Result<String, String> {
+        let order = self.create_topological_order(module);
+
+        if let Err(err) = order {
+            return Err(err);
+        }
+
+        let codes: Vec<String> = order
+            .unwrap()
+            .iter()
+            .map(|definition| {
+                let mut parts = definition.split('.');
+                let module_name = parts.next().unwrap();
+                let name = parts.next().unwrap();
+
+                // get the module
+                let module = self.modules.get(module_name).unwrap();
+
+                // get the definition
+                let def = module.definitions.get(name).unwrap();
+
+                let code = self.generate_qoutation(&def.body.borrow());
+
+                self.generated.insert(definition.to_string(), code.clone());
+
+                code
+            })
+            .collect();
+
+        Ok(codes.last().unwrap().to_string())
+    }
+
+    fn generate_qoutation(&self, node: &AstNode) -> String {
+        match node {
+            AstNode::Qoutation(v) => {
+                let mut output = vec![];
+
+                for qoutation in v {
+                    output.push(self.generate_qoutation(qoutation));
+                }
+
+                output.join("")
+            }
+            AstNode::Composition(composition, qoutations) => {
+                // look up the composition
+                let mut composition = self
+                    .compositions
+                    .get(composition.as_str())
+                    .unwrap()
+                    .1
+                    .to_string();
+
+                // generate the qoutations
+                let qoutations = qoutations
+                    .iter()
+                    .map(|qoutation| self.generate_qoutation(qoutation))
+                    .collect::<Vec<_>>();
+
+                // build the composition using replacement
+                for (index, qoutation) in qoutations.iter().enumerate() {
+                    composition = composition.replace(&format!("{{{}}}", index), qoutation);
+                }
+
+                composition
+            }
+            AstNode::Atomic(atomic) => {
+                let atomic = atomic.borrow();
+
+                // return the code of atomic
+                self.generated.get(&*atomic).unwrap().to_string()
+            }
+            AstNode::Byte(n) => self.constants.get(*n as usize).unwrap().to_string(),
+            AstNode::Builtin(name) => self.builtins.get(name.as_str()).unwrap().to_string(),
+        }
+    }
+
     // Create a topological ordering of the definitions using DFS
-    pub fn create_topological_order(&self, module: Rc<Module>) -> Option<Vec<String>> {
+    fn create_topological_order(&self, module: Rc<Module>) -> Result<Vec<String>, String> {
         let mut visited = HashSet::new();
         let mut working = HashSet::new();
         let mut order = Vec::new();
 
-        match module.definitions.keys().into_iter().try_for_each(|n| {
-            self.visit(
-                &mut visited,
-                &mut working,
-                &mut order,
-                format!("{}.{}", &module.name, n),
-            )
-        }) {
-            Ok(_) => Some(order),
-            Err(err) => {
-                eprintln!("{}", err);
-                None
-            }
+        match self.visit(
+            &mut visited,
+            &mut working,
+            &mut order,
+            format!("{}.main", module.name),
+        ) {
+            Ok(_) => Ok(order),
+            Err(err) => Err(err),
         }
     }
 
@@ -360,33 +485,45 @@ impl<'a> BFJoyParser<'a> {
         // split the name into the module and the definition
         let mut parts = name.split('.');
         let module = self.modules.get(parts.next().unwrap()).unwrap();
-        let def = module.definitions.get(parts.next().unwrap()).unwrap();
+        let definition = module.definitions.get(parts.next().unwrap()).unwrap();
 
-        for dep in &def.dependencies {
+        for dep in definition.dependencies.clone() {
             // find a suitable definition in scope
             let mut found = false;
 
-            // first check if the definition is in the same module
-            if let Some(def) = module.definitions.get(dep) {
-                if let Err(e) = self.visit(
-                    visited,
-                    working,
-                    order,
-                    format!("{}.{}", &module.name, def.name),
-                ) {
+            // check if the definition is in the form "module.name"
+            let parts: Vec<_> = dep.split('.').collect();
+            if parts.len() == 2 {
+                let scope = self.modules.get(parts[0]).unwrap();
+
+                if let Some(_) = scope.definitions.get(parts[1]) {
+                    if let Err(err) = self.visit(visited, working, order, dep.clone()) {
+                        return Err(err);
+                    }
+
+                    found = true;
+                }
+            } else if let Some(def) = module.definitions.get(&dep) {
+                let full_name = format!("{}.{}", &module.name, def.name);
+
+                let mut body = definition.body.borrow_mut();
+                body.solve_atomic(&dep, &full_name);
+
+                // check if the definition is in the same module
+                if let Err(e) = self.visit(visited, working, order, full_name) {
                     return Err(e);
                 }
 
                 found = true;
             } else {
                 for scope in module.scopes.iter().rev() {
-                    if let Some(def) = scope.definitions.get(dep) {
-                        if let Err(e) = self.visit(
-                            visited,
-                            working,
-                            order,
-                            format!("{}.{}", &scope.name, def.name),
-                        ) {
+                    if let Some(def) = scope.definitions.get(&dep) {
+                        let full_name = format!("{}.{}", &scope.name, def.name);
+
+                        let mut body = definition.body.borrow_mut();
+                        body.solve_atomic(&dep, &full_name);
+
+                        if let Err(e) = self.visit(visited, working, order, full_name) {
                             return Err(e);
                         }
 

@@ -1,3 +1,18 @@
-print == 0;
+# pop (a -- )
+# prints a to stdout and then drops it
+pop == print drop;
 
-drop == 1;
+# neq (a b -- a != b)
+# returns 1 if a != b otherwise returns 0
+neq == eq not;
+
+# booleans
+true == 1;
+false == 0;
+
+# dupn (a n -- a a ... a)
+# dupn (a 0 -- )
+dupn == [dup dec swap 0 neq] [drop over swap] while drop drop;
+
+# multiplies the two numbers on the top of the stack
+mul == 0 rot rot dupn [swap dup 0 neq] [drop + print] while drop;

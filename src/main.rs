@@ -7,15 +7,13 @@ fn compile(contents: &str, file_name: String) -> String {
 
     match parser.module(contents, file_name) {
         Ok(module) => {
-            println!("Module: {:?}\nTopological Sort: {:?}", module.clone(), parser.create_topological_order(module).unwrap());
+            parser.generate(module).unwrap()
         },
         Err(err) => {
             eprintln!("{}", err);
             exit(1);
         },
-    };
-
-    String::from("no")
+    }
 }
 
 fn main() {   
