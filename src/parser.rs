@@ -139,8 +139,8 @@ impl<'a> BFJoyParser<'a> {
                         }
 
                         // check if the module has been loaded
-                        if self.modules.contains_key(name.as_str()) {
-                            continue;
+                        let module = if self.modules.contains_key(name.as_str()) {
+                            self.modules.get(name.as_str()).unwrap().to_owned()
                         } else {
                             let file = LIBRARIES.get_file(name.as_str().to_string() + ".joy");
                             match file {
@@ -160,10 +160,10 @@ impl<'a> BFJoyParser<'a> {
                                             }
                                         };
 
-                                    // add the module
-                                    scopes.push(module.clone());
-                                    self.modules.insert(name.as_str().to_string(), module);
+                                    // track that we are no longer building this module
                                     self.building.pop();
+
+                                    module
                                 }
                                 None => {
                                     return Err(Error::new_from_span(
@@ -174,7 +174,10 @@ impl<'a> BFJoyParser<'a> {
                                     ));
                                 }
                             }
-                        }
+                        };
+
+                        scopes.push(module.clone());
+                        self.modules.insert(name.as_str().to_string(), module);
                     }
                 }
                 Rule::definition_sequence => match self.definition_sequence(pair) {
@@ -394,7 +397,12 @@ impl<'a> BFJoyParser<'a> {
             }
 
             if !found {
-                return Err(format!("Could not find definition for {}", dep));
+                return Err(format!(
+                    "Could not find definition for {} in module {}\nScopes: {:?}",
+                    dep,
+                    module.name,
+                    module.scopes.iter().map(|s| &s.name).collect::<Vec<_>>()
+                ));
             }
         }
 

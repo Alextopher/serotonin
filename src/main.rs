@@ -7,7 +7,7 @@ fn compile(contents: &str, file_name: String) -> String {
 
     match parser.module(contents, file_name) {
         Ok(module) => {
-            println!("{:?}\n{:?}", module.clone(), parser.create_topological_order(module));
+            println!("Module: {:?}\nTopological Sort: {:?}", module.clone(), parser.create_topological_order(module).unwrap());
         },
         Err(err) => {
             eprintln!("{}", err);
