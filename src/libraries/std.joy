@@ -1,1 +1,3 @@
-pop == print drop;
+print == 1;
+
+drop == 0;

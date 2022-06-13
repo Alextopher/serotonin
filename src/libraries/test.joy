@@ -1,0 +1,3 @@
+IMPORT std;
+
+pop == print drop;

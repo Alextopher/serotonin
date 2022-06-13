@@ -1,5 +1,3 @@
-INCLUDE std;
-
-main == "hello world!" [] [pop] while;
+IMPORT test;
 
 main == "hello world!" [] [pop] while;

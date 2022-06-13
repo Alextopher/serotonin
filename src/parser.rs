@@ -1,6 +1,14 @@
-use std::collections::HashMap;
+use core::panic;
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
-use pest::{iterators::Pair, Parser, error::{Error, ErrorVariant}, Span};
+use pest::{
+    error::{Error, ErrorVariant},
+    iterators::Pair,
+    Parser, Span,
+};
 
 use crate::stdlib::LIBRARIES;
 
@@ -8,24 +16,41 @@ use crate::stdlib::LIBRARIES;
 #[grammar = "joy.pest"]
 pub struct JoyParser;
 
+#[derive(Debug)]
+struct MySpan {
+    start: usize,
+    end: usize,
+}
+
+impl From<Span<'_>> for MySpan {
+    fn from(span: Span) -> Self {
+        MySpan {
+            start: span.start(),
+            end: span.end(),
+        }
+    }
+}
+
 // joy is a functional language and at it's base it is made up of two things
 // 1. compositions which take some amount of quotations and preforms an operation
 // 2. quotations which are "lists" of compositions or quotations and ard typicall preformed in order
 // there is some other stuff needed so that we can define new compositions
 // and to handle imports and exports
 #[derive(Debug)]
-pub struct Module<'a> {
+pub struct Module {
     name: String,
-    scopes: Vec<String>,
-    private: HashMap<String, Definition<'a>>,
-    public: HashMap<String, Definition<'a>>,
+    scopes: Vec<Rc<Module>>,
+    definitions: HashMap<String, Rc<Definition>>,
 }
 
+impl Module {}
+
 #[derive(Debug)]
-pub struct Definition<'a> {
+pub struct Definition {
     name: String,
     body: AstNode,
-    span: Span<'a>,
+    dependencies: HashSet<String>,
+    span: MySpan,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -41,14 +66,13 @@ pub enum AstNode {
 }
 
 pub struct BFJoyParser<'a> {
-    modules: HashMap<String, Module<'a>>,
-    definitions: HashMap<String, Definition<'a>>,
-    // compositions is a list of compositions and the number of qoutations they require
+    modules: HashMap<String, Rc<Module>>,
+    building: Vec<String>,
     compositions: HashMap<&'a str, usize>,
-    input: &'a str,
+    inputs: Vec<&'a str>,
 }
 
-impl <'a> BFJoyParser<'a> {
+impl<'a> BFJoyParser<'a> {
     pub fn new() -> BFJoyParser<'a> {
         // Build composition map
         let mut compositions = HashMap::new();
@@ -58,15 +82,19 @@ impl <'a> BFJoyParser<'a> {
 
         BFJoyParser {
             modules: HashMap::new(),
-            definitions: HashMap::new(),
+            building: Vec::new(),
             compositions,
-            input: "",
+            inputs: Vec::new(),
         }
     }
 
-    pub fn module(&'a mut self, contents: &'a str, name: String) -> Result<Module, Error<Rule>> {
+    fn make_span(&self, span: &MySpan) -> Span<'a> {
+        Span::new(self.inputs.last().unwrap(), span.start, span.end).unwrap()
+    }
+
+    pub fn module(&mut self, contents: &'a str, name: String) -> Result<Rc<Module>, Error<Rule>> {
         // copy the input so we can reference it later
-        self.input = contents;
+        self.inputs.push(contents);
 
         // parse the module with pest
         let result = JoyParser::parse(Rule::module, contents);
@@ -74,17 +102,42 @@ impl <'a> BFJoyParser<'a> {
             return Err(e);
         }
 
-        let mut count_definitions = 0;
-        let mut definitions: (HashMap<String, Definition>, HashMap<String, Definition>) =
-            (HashMap::new(), HashMap::new());
+        let mut definitions = HashMap::new();
         let mut scopes = Vec::new();
 
         // iterate over the pairs
         for pair in result.unwrap().next().unwrap().into_inner() {
             match pair.as_rule() {
-                Rule::includes => {
-                    // parse the includes
+                Rule::imports => {
+                    // parse the imports
                     for name in pair.into_inner() {
+                        // check if we are already building this module
+                        if self.building.contains(&name.as_str().to_string()) {
+                            // build the cycle so it can be reported
+                            let mut cycle = Vec::new();
+                            while self.building.last().unwrap() != name.as_str() {
+                                cycle.push(self.building.pop().unwrap());
+                            }
+
+                            // create a nice error message
+                            let mut message = format!("{}", name.as_str());
+                            let iter = cycle.iter().rev();
+                            for name in iter {
+                                message.push_str(&format!(" -> {}", name));
+                            }
+
+                            return Err(Error::new_from_span(
+                                ErrorVariant::CustomError {
+                                    message: format!(
+                                        "Circular import detected:\n{} -> {}\n",
+                                        message,
+                                        name.as_str()
+                                    ),
+                                },
+                                name.as_span(),
+                            ));
+                        }
+
                         // check if the module has been loaded
                         if self.modules.contains_key(name.as_str()) {
                             continue;
@@ -95,67 +148,61 @@ impl <'a> BFJoyParser<'a> {
                                     // read the file
                                     let contents = file.contents_utf8().unwrap();
 
+                                    // track that we are currently building this module
+                                    self.building.push(name.as_str().to_string());
+
                                     // parse the module
                                     let module =
-                                        self.module(contents, name.as_str().to_string()).unwrap();
+                                        match self.module(contents, name.as_str().to_string()) {
+                                            Ok(module) => module,
+                                            Err(e) => {
+                                                return Err(e);
+                                            }
+                                        };
 
-                                    // add the module to the modules
+                                    // add the module
+                                    scopes.push(module.clone());
                                     self.modules.insert(name.as_str().to_string(), module);
+                                    self.building.pop();
                                 }
                                 None => {
                                     return Err(Error::new_from_span(
-                                        ErrorVariant::CustomError { message: format!("Module not found") },
+                                        ErrorVariant::CustomError {
+                                            message: format!("Could not find module"),
+                                        },
                                         name.as_span(),
                                     ));
                                 }
                             }
                         }
-
-                        // add the module to the scopes
-                        scopes.push(name.as_str().to_string());
                     }
                 }
                 Rule::definition_sequence => match self.definition_sequence(pair) {
-                    Ok(definition) => match count_definitions {
-                        0 => {
-                            definitions.0 = definition;
-                            count_definitions += 1;
-                        }
-                        1 => {
-                            definitions.1 = definition;
-                            count_definitions += 1;
-                        }
-                        _ => unreachable!(),
-                    },
+                    Ok(defs) => definitions = defs,
                     Err(err) => return Err(err),
                 },
                 Rule::EOI => (),
                 _ => panic!("Unexpected rule {:?}", pair),
             }
         }
+        self.inputs.pop();
 
-        // create the scope
-        Ok(match count_definitions {
-            1 => Module {
-                name,
-                scopes,
-                private: definitions.1,
-                public: definitions.0,
-            },
-            2 => Module {
-                name,
-                scopes,
-                private: definitions.0,
-                public: definitions.1,
-            },
-            _ => unreachable!(),
-        })
+        let module = Rc::new(Module {
+            name: name.clone(),
+            scopes,
+            definitions,
+        });
+
+        self.modules
+            .insert(name.as_str().to_string(), module.clone());
+
+        Ok(module)
     }
 
     fn definition_sequence(
-        &'a mut self,
+        &mut self,
         pair: Pair<Rule>,
-    ) -> Result<HashMap<String, Definition>, Error<Rule>> {
+    ) -> Result<HashMap<String, Rc<Definition>>, Error<Rule>> {
         let mut definitions = HashMap::new();
 
         for pair in pair.into_inner() {
@@ -165,44 +212,68 @@ impl <'a> BFJoyParser<'a> {
             match self.definition(pair) {
                 Ok(definition) => {
                     // check if the definition has already been defined
-                    if definitions.contains_key(&definition.name) {
-                        return Err(Error::new_from_span(
-                            ErrorVariant::CustomError {
-                                message: format!("Definition already defined"),
-                            },
-                            span,
-                        ));
-                    } else {
-                        // add the definition to the definitions
-                        definitions.insert(definition.name.clone(), definition);
+                    match definitions.insert(definition.name.clone(), definition) {
+                        Some(def) => {
+                            let old_line = self.make_span(&def.span).start_pos().line_col().0;
+                            let new_line = span.start_pos().line_col().0;
+
+                            return Err(Error::new_from_span(
+                                ErrorVariant::CustomError {
+                                    message: format!("def {:?} redefined on line {}. It was originally defined on line {}", def.name, new_line, old_line ),
+                                },
+                                span
+                            ));
+                        }
+                        None => {}
                     }
                 }
-                Err(err) => return Err(err),
+                Err(e) => return Err(e),
             }
         }
 
         Ok(definitions)
     }
 
-    fn definition(&'a mut self, pair: Pair<Rule>) -> Result<Definition, Error<Rule>> {
+    fn definition(&mut self, pair: Pair<Rule>) -> Result<Rc<Definition>, Error<Rule>> {
         let span = pair.as_span();
         let mut pairs = pair.into_inner();
         let name = pairs.next().unwrap().as_str().to_string();
         let pair = pairs.next().unwrap();
-        
+
         let mut stack = Vec::new();
 
         match self.qoutation(&mut stack, pair) {
             Some(err) => Err(err),
-            None => Ok(Definition {
-                name,
-                body: stack.pop().unwrap(),
-                span: Span::new(self.input, span.start(), span.end()).unwrap(),
-            }),
+            None => {
+                let body = stack.pop().unwrap();
+                let span = span.into();
+
+                // track dependencies (but do not resolve them)
+                let mut dependencies = HashSet::new();
+                let mut stack = vec![&body];
+
+                while let Some(qoutation) = stack.pop() {
+                    match qoutation {
+                        AstNode::Qoutation(qoutations) => stack.extend(qoutations),
+                        AstNode::Composition(_, qoutations) => stack.extend(qoutations),
+                        AstNode::Atomic(name) => {
+                            dependencies.insert(name.to_string());
+                        }
+                        _ => {}
+                    }
+                }
+
+                Ok(Rc::new(Definition {
+                    name,
+                    body,
+                    dependencies,
+                    span,
+                }))
+            }
         }
     }
 
-    fn qoutation(&'a mut self, stack: &mut Vec<AstNode>, pair: Pair<Rule>) -> Option<Error<Rule>> {
+    fn qoutation(&mut self, stack: &mut Vec<AstNode>, pair: Pair<Rule>) -> Option<Error<Rule>> {
         match pair.as_rule() {
             Rule::term => {
                 let mut sub_stack = Vec::new();
@@ -228,16 +299,109 @@ impl <'a> BFJoyParser<'a> {
             }
             Rule::integer => match pair.as_str().parse::<u8>() {
                 Ok(byte) => stack.push(AstNode::Byte(byte)),
-                Err(err) => return Some(Error::new_from_span(
-                    ErrorVariant::CustomError {
-                        message: format!("{}", err),
-                    },
-                    pair.as_span(),
-                )),
+                Err(err) => {
+                    return Some(Error::new_from_span(
+                        ErrorVariant::CustomError {
+                            message: format!("{}", err),
+                        },
+                        pair.as_span(),
+                    ))
+                }
             },
             Rule::string => stack.push(AstNode::String(pair.as_str().to_string())),
             _ => panic!("Unexpected rule {:?} in qoutation", pair.as_str()),
         };
+
         None
+    }
+
+    // Create a topological ordering of the definitions using DFS
+    pub fn create_topological_order(&self, module: Rc<Module>) -> Option<Vec<String>> {
+        let mut visited = HashSet::new();
+        let mut working = HashSet::new();
+        let mut order = Vec::new();
+
+        match module.definitions.keys().into_iter().try_for_each(|n| {
+            self.visit(
+                &mut visited,
+                &mut working,
+                &mut order,
+                format!("{}.{}", &module.name, n),
+            )
+        }) {
+            Ok(_) => Some(order),
+            Err(err) => {
+                eprintln!("{}", err);
+                None
+            }
+        }
+    }
+
+    fn visit(
+        &self,
+        visited: &mut HashSet<String>,
+        working: &mut HashSet<String>,
+        order: &mut Vec<String>,
+        name: String,
+    ) -> Result<(), String> {
+        if visited.contains(&name) {
+            return Ok(());
+        }
+
+        if working.contains(&name) {
+            return Err(format!("Cyclic dependency detected: {}", name));
+        }
+
+        working.insert(name.clone());
+
+        // split the name into the module and the definition
+        let mut parts = name.split('.');
+        let module = self.modules.get(parts.next().unwrap()).unwrap();
+        let def = module.definitions.get(parts.next().unwrap()).unwrap();
+
+        for dep in &def.dependencies {
+            // find a suitable definition in scope
+            let mut found = false;
+
+            // first check if the definition is in the same module
+            if let Some(def) = module.definitions.get(dep) {
+                if let Err(e) = self.visit(
+                    visited,
+                    working,
+                    order,
+                    format!("{}.{}", &module.name, def.name),
+                ) {
+                    return Err(e);
+                }
+
+                found = true;
+            } else {
+                for scope in module.scopes.iter().rev() {
+                    if let Some(def) = scope.definitions.get(dep) {
+                        if let Err(e) = self.visit(
+                            visited,
+                            working,
+                            order,
+                            format!("{}.{}", &scope.name, def.name),
+                        ) {
+                            return Err(e);
+                        }
+
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if !found {
+                return Err(format!("Could not find definition for {}", dep));
+            }
+        }
+
+        working.remove(&name);
+        visited.insert(name.clone());
+        order.push(name);
+
+        Ok(())
     }
 }

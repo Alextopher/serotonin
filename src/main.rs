@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{io::Read, process::exit};
 use bfjoy::parser::BFJoyParser;
 
 fn compile(contents: &str, file_name: String) -> String {
@@ -6,8 +6,13 @@ fn compile(contents: &str, file_name: String) -> String {
     let mut parser = BFJoyParser::new();
 
     match parser.module(contents, file_name) {
-        Ok(module) => println!("{:?}", module),
-        Err(err) => panic!("{}", err),
+        Ok(module) => {
+            println!("{:?}\n{:?}", module.clone(), parser.create_topological_order(module));
+        },
+        Err(err) => {
+            eprintln!("{}", err);
+            exit(1);
+        },
     };
 
     String::from("no")
