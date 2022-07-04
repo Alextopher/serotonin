@@ -25,10 +25,9 @@ single_definition = _{ SOI ~ definition ~ EOI }
 reserved_character = { "[" | "]" | "{" | "}" | ";" | "`" }
 
 // Integer of any length
-integer = @{ 
-    ("0x" ~ ASCII_HEX_DIGIT ~ ASCII_HEX_DIGIT)
-    | (ASCII_DIGIT+)
-}
+integer = @{ ASCII_DIGIT+ }
+// Hexadecimal integer of any length
+hex_integer = @{ "0x" ~ ASCII_HEX_DIGIT{2} }
 
 // handles strings
 string = ${ "\"" ~ ( char | escaped | escaped_hex )* ~ "\"" }
@@ -54,7 +53,7 @@ brainfuck = {
 
 factor = _{
     atomic
-    | integer 
+    | hex_integer | integer
     | string
     | brainfuck
     | ( "\'" ~ ( char | escaped | escaped_hex ) ~ "\'" )

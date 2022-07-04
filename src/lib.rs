@@ -5,4 +5,5 @@ extern crate pest_derive;
 pub mod parser;
 pub mod stdlib;
 
+#[cfg(test)]
 mod tests;

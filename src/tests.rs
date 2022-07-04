@@ -1,83 +1,150 @@
 #![cfg(test)]
-
 extern crate pest;
 
-use std::{cmp::max, num::Wrapping, process::exit};
-
 use crate::parser::BFJoyParser;
+use std::num::Wrapping;
 
-// a dead simple BF interpreter
-fn run(bf: &str, input: Vec<Wrapping<u8>>) -> (Vec<Wrapping<u8>>, [Wrapping<u8>; 65536], usize) {
-    // tape is maxiumum of 2^16 cells
-    let mut tape = [Wrapping(0u8); 65536];
-    let mut tape_ptr = 0;
-    let mut max_tape_ptr = 0;
-    let mut inst_ptr = 0;
-
-    let mut input_ptr = 0;
-    let mut output = Vec::new();
-
-    // run the BF code
-    while inst_ptr < bf.len() {
-        let c = bf.as_bytes()[inst_ptr];
-        match c {
-            b'>' => {
-                tape_ptr += 1;
-                max_tape_ptr = max(max_tape_ptr, tape_ptr);
-            }
-            b'<' => tape_ptr -= 1,
-            b'+' => tape[tape_ptr] += 1,
-            b'-' => tape[tape_ptr] -= 1,
-            b'.' => {
-                output.push(tape[tape_ptr]);
-            }
-            b',' => {
-                if input_ptr < input.len() {
-                    tape[tape_ptr] = input[input_ptr];
-                    input_ptr += 1;
-                } else {
-                    panic!("Input ended before BF code");
-                }
-            }
-            b'[' => {
-                if tape[tape_ptr] == Wrapping(0) {
-                    // skip forward to the matching ]
-                    let mut depth = 1;
-                    while depth > 0 {
-                        inst_ptr += 1;
-                        if bf.as_bytes()[inst_ptr] == b'[' {
-                            depth += 1;
-                        } else if bf.as_bytes()[inst_ptr] == b']' {
-                            depth -= 1;
-                        }
-                    }
-                }
-            }
-            b']' => {
-                if tape[tape_ptr] != Wrapping(0) {
-                    // skip backward to the matching [
-                    let mut depth = 1;
-                    while depth > 0 {
-                        inst_ptr -= 1;
-                        if bf.as_bytes()[inst_ptr] == b']' {
-                            depth += 1;
-                        } else if bf.as_bytes()[inst_ptr] == b'[' {
-                            depth -= 1;
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-        inst_ptr += 1;
-    }
-
-    (output, tape, max_tape_ptr)
+#[derive(Debug, PartialEq, Clone)]
+enum Op {
+    // add or subtract
+    Change(i32),
+    // move left or right
+    Move(i32),
+    // .
+    Print,
+    // ,
+    Read,
+    // [ ... ]
+    Loop(Box<[Op]>),
+    // [-]
+    Zero,
 }
 
-fn verify_tape(tape: [Wrapping<u8>; 65536], max_tape_ptr: usize) -> Option<usize> {
+fn parse(it: &mut impl Iterator<Item = u8>) -> Box<[Op]> {
+    let mut buf = vec![];
+    while let Some(c) = it.next() {
+        buf.push(match c {
+            b'-' => Op::Change(-1),
+            b'+' => Op::Change(1),
+            b'<' => Op::Move(-1),
+            b'>' => Op::Move(1),
+            b'.' => Op::Print,
+            b',' => Op::Read,
+            b'[' => Op::Loop(parse(it)),
+            b']' => break,
+            _ => continue,
+        });
+    }
+    buf.into_boxed_slice()
+}
+
+fn optimize(ops: Box<[Op]>) -> Box<[Op]> {
+    fn replace_zeros(ops: Box<[Op]>) -> Box<[Op]> {
+        // check if the loop is [-] or [+]
+        if ops.len() == 1 && (ops[0] == Op::Change(1) || ops[0] == Op::Change(-1)) {
+            Box::new([Op::Zero])
+        } else {
+            let mut new_ops = vec![];
+            for op in ops.iter() {
+                let new_op = op.clone();
+                match new_op {
+                    Op::Loop(ops) => new_ops.push(Op::Loop(replace_zeros(ops.clone()))),
+                    _ => new_ops.push(new_op),
+                }
+            }
+            new_ops.into_boxed_slice()
+        }
+    }
+
+    let ops = replace_zeros(ops);
+    let mut new_ops: Vec<Op> = vec![];
+
+    for op in ops.into_iter() {
+        if new_ops.len() == 0 {
+            new_ops.push(op.clone());
+        } else {
+            match (new_ops.last_mut().unwrap(), op) {
+                (Op::Change(a), Op::Change(b)) => {
+                    *a += b;
+                }
+                (Op::Move(a), Op::Move(b)) => {
+                    *a += b;
+                }
+                (Op::Change(_), Op::Zero) => {
+                    new_ops.pop();
+                    new_ops.push(Op::Zero);
+                }
+                (Op::Zero, Op::Loop(_)) => {}
+                (Op::Loop(_), Op::Loop(_)) => {}
+                (_, op) => new_ops.push(op.clone()),
+            }
+        }
+    }
+
+    new_ops.into_boxed_slice()
+}
+
+// a dead simple BF interpreter
+struct Interpreter {
+    tape: [Wrapping<u8>; 65536],
+    pointer: usize,
+    input_pointer: usize,
+}
+
+impl Interpreter {
+    fn new() -> Self {
+        Self {
+            tape: [Wrapping(0); 65536],
+            pointer: 0,
+            input_pointer: 0,
+        }
+    }
+
+    fn run(
+        &mut self,
+        instructions: Box<[Op]>,
+        input: &Vec<Wrapping<u8>>,
+        output: &mut Vec<Wrapping<u8>>,
+    ) {
+        for instruction in instructions.iter() {
+            match instruction {
+                Op::Change(change) => {
+                    if *change > 0 {
+                        self.tape[self.pointer] += Wrapping(*change as u8);
+                    } else {
+                        self.tape[self.pointer] -= Wrapping(-change as u8);
+                    }
+                }
+                Op::Move(move_) => {
+                    if *move_ > 0 {
+                        self.pointer += *move_ as usize;
+                    } else {
+                        self.pointer -= (-move_) as usize;
+                    }
+                }
+                Op::Print => output.push(self.tape[self.pointer]),
+                Op::Read => {
+                    if self.input_pointer < input.len() {
+                        self.tape[self.pointer] = input[self.input_pointer];
+                        self.input_pointer += 1;
+                    } else {
+                        panic!("not enough input");
+                    }
+                }
+                Op::Loop(instructions) => {
+                    while self.tape[self.pointer] != Wrapping(0) {
+                        self.run(instructions.clone(), input, output);
+                    }
+                }
+                Op::Zero => self.tape[self.pointer] = Wrapping(0),
+            }
+        }
+    }
+}
+
+fn verify_tape(tape: [Wrapping<u8>; 65536]) -> Option<usize> {
     // verifies the tape is set to zeros
-    for i in 0..max_tape_ptr {
+    for i in 0..65536 {
         if tape[i] != Wrapping(0) {
             return Some(i);
         }
@@ -105,20 +172,30 @@ fn multiple_test(joy: String, inputs: Vec<Vec<Wrapping<u8>>>, outputs: Vec<Vec<W
     // compile
     assert!(!code.is_empty(), "code failed to compile");
 
+    // optimize the brainfuck code
+    let instructions = optimize(parse(&mut code.bytes()));
+    println!("{:?}", instructions);
+
     // run the code
     for (input, output) in inputs.iter().zip(outputs.iter()) {
-        let (result, tape, max_tape) = run(&code, input.clone());
+        // run the interpreter
+        let mut result = vec![];
+        let mut interpreter = Interpreter::new();
+        interpreter.run(instructions.clone(), input, &mut result);
 
         // verify the tape is set to zeros
-        match verify_tape(tape, max_tape) {
-            Some(i) => panic!("Input {:?}: Tape is {} at {}", input, tape[i], i),
+        match verify_tape(interpreter.tape) {
+            Some(i) => panic!(
+                "Input {:?}: NonZeroTape at position {}\n{:?}",
+                input, i, interpreter.tape
+            ),
             None => {}
         }
 
         assert_eq!(
             result,
             output.clone(),
-            "Input {:?} expected output {:?} but got {:?}",
+            "Input {:?}: expected output {:?} but got {:?}",
             input,
             output,
             result
@@ -326,6 +403,24 @@ fn test_eq() {
 }
 
 #[test]
+fn test_zeq() {
+    let code = format!("IMPORT std; main == read zeq pop;");
+    let mut inputs = Vec::new();
+    let mut outputs = Vec::new();
+
+    for i in (0u8..=255).map(Wrapping) {
+        inputs.push(vec![i]);
+        outputs.push(vec![if i == Wrapping(0) {
+            Wrapping(1)
+        } else {
+            Wrapping(0)
+        }]);
+    }
+
+    multiple_test(code, inputs, outputs);
+}
+
+#[test]
 fn test_not() {
     let code = format!("IMPORT std; main == read not pop;");
     let mut inputs = Vec::new();
@@ -382,29 +477,48 @@ fn test_neq() {
 //     multiple_test(code, inputs, outputs);
 // }
 
-// #[test]
-// fn test_while() {
-//     let code = format!("IMPORT std; main == 0 pop 1 [0 neq] [print dup +] while drop;");
-//     let input = vec![];
-//     let output = vec![
-//         Wrapping(0),
-//         Wrapping(1),
-//         Wrapping(2),
-//         Wrapping(4),
-//         Wrapping(8),
-//         Wrapping(16),
-//         Wrapping(32),
-//         Wrapping(64),
-//         Wrapping(128),
-//     ];
-
-//     single_test(code, input, output);
-// }
-
 #[test]
-// verifies if add with carry works correctly on all inputs
+fn test_mul() {
+    // for now this just tests multiply because that's the only thing that uses dupn
+    let code = format!("IMPORT std; main == read read mul pop;");
+    let mut inputs = Vec::new();
+    let mut outputs = Vec::new();
+
+    // test 1000 random pairs
+    (0..100).for_each(|_i| {
+        let a = rand::random::<Wrapping<u8>>();
+        let b = rand::random::<Wrapping<u8>>();
+
+        inputs.push(vec![a, b]);
+        outputs.push(vec![a * b]);
+    });
+
+    // add some special cases
+    for i in (0u8..=255).map(Wrapping) {
+        // 0 * anything = 0
+        inputs.push(vec![Wrapping(0), i]);
+        outputs.push(vec![Wrapping(0)]);
+
+        // anything * 0 = 0
+        inputs.push(vec![i, Wrapping(0)]);
+        outputs.push(vec![Wrapping(0)]);
+
+        // 1 * anything = anything
+        inputs.push(vec![Wrapping(1), i]);
+        outputs.push(vec![i]);
+
+        // anything * 1 = anything
+        inputs.push(vec![i, Wrapping(1)]);
+        outputs.push(vec![i]);
+    }
+
+    multiple_test(code, inputs, outputs);
+}
+
+// Tests for the u16 module
+#[test]
 fn test_adc() {
-    let code = format!("IMPORT std u16; main == read read adc pop pop;");
+    let code = format!("IMPORT std u16; main == read read addc pop pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
     for i in 0u16..=255 {
@@ -417,6 +531,23 @@ fn test_adc() {
             } else {
                 outputs.push(vec![Wrapping(0), Wrapping(i as u8) + Wrapping(j as u8)]);
             }
+        }
+    }
+
+    multiple_test(code, inputs, outputs);
+}
+
+#[test]
+fn test_incc() {
+    let code = format!("IMPORT std u16; main == read incc pop pop;");
+    let mut inputs = Vec::new();
+    let mut outputs = Vec::new();
+    for i in 0u16..=255 {
+        inputs.push(vec![Wrapping(i as u8)]);
+        if i == 255 {
+            outputs.push(vec![Wrapping(1), Wrapping(0)]);
+        } else {
+            outputs.push(vec![Wrapping(0), Wrapping(i as u8 + 1)]);
         }
     }
 
