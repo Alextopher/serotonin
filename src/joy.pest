@@ -22,7 +22,7 @@ imports = {
 single_definition = _{ SOI ~ definition ~ EOI }
 
 // Reserved character
-reserved_character = { "[" | "]" | "{" | "}" | ";" }
+reserved_character = { "[" | "]" | "{" | "}" | ";" | "`" }
 
 // Integer of any length
 integer = @{ 
@@ -31,7 +31,7 @@ integer = @{
 }
 
 // handles strings
-string = ${ "\"" ~ (char | escaped | escaped_hex )* ~ "\"" }
+string = ${ "\"" ~ ( char | escaped | escaped_hex )* ~ "\"" }
 char = { !("\"" | "\\") ~ ANY }
 escaped = { "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t") }
 escaped_hex = { "\\" ~ ("x" ~ ASCII_HEX_DIGIT{2}) }
@@ -47,10 +47,17 @@ atomic = @{
     ~ (ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "." )*
 }
 
+// a brainfuck block, this allows for writing code manually (at the cost of any kind of safety)
+brainfuck = {
+    "`" ~ (">" | "<" | "+" | "-" | "." | "," | "[" | "]")* ~ "`"
+}
+
 factor = _{
     atomic
     | integer 
     | string
+    | brainfuck
+    | ( "\'" ~ ( char | escaped | escaped_hex ) ~ "\'" )
     // TODO: can I make sets? | ("{" ~ integer_constant ~ "}")
     | ("[" ~ term ~ "]") 
 }

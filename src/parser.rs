@@ -62,8 +62,8 @@ pub enum AstNode {
     Atomic(RefCell<String>),
     // Byte is a special composition that adds a single byte to the stack
     Byte(u8),
-    // Builtin is a special composition for builtin functions
-    Builtin(String),
+    // Brainfuck is a special composition for manually written unsafe compositions
+    Brainfuck(String),
 }
 
 impl AstNode {
@@ -98,7 +98,6 @@ pub struct BFJoyParser<'a> {
     modules: HashMap<String, Rc<Module>>,
     building: Vec<String>,
     compositions: HashMap<&'a str, (usize, &'a str)>,
-    builtins: HashMap<&'a str, &'a str>,
     inputs: Vec<&'a str>,
     generated: HashMap<String, String>,
     constants: Vec<String>,
@@ -110,7 +109,6 @@ impl<'a> BFJoyParser<'a> {
             modules: HashMap::new(),
             building: Vec::new(),
             compositions: stdlib::load_compositions(),
-            builtins: stdlib::load_builtins(),
             inputs: Vec::new(),
             generated: HashMap::new(),
             constants: stdlib::generate_constants(),
@@ -323,11 +321,16 @@ impl<'a> BFJoyParser<'a> {
                 if let Some((qoutations, _)) = self.compositions.get(name) {
                     let qoutations = stack.split_off(stack.len() - qoutations);
                     stack.push(AstNode::Composition(name.to_string(), qoutations));
-                } else if self.builtins.contains_key(name) {
-                    stack.push(AstNode::Builtin(name.to_string()))
                 } else {
                     stack.push(AstNode::Atomic(RefCell::new(name.to_string())))
                 }
+            }
+            Rule::brainfuck => {
+                // remove the first and last character
+                let mut brainfuck = pair.as_str().to_string();
+                brainfuck.remove(0);
+                brainfuck.pop();
+                stack.push(AstNode::Brainfuck(brainfuck));
             }
             Rule::integer => match pair.as_str().parse::<u8>() {
                 Ok(byte) => stack.push(AstNode::Byte(byte)),
@@ -342,30 +345,11 @@ impl<'a> BFJoyParser<'a> {
             },
             Rule::string => pair
                 .into_inner()
-                .map(|rule| match rule.as_rule() {
-                    Rule::char => AstNode::Byte(rule.as_str().bytes().next().unwrap()),
-                    Rule::escaped => {
-                        match rule.as_str() {
-                            // "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
-                            "\\\\" => AstNode::Byte(b'\\'),
-                            "\\\"" => AstNode::Byte(b'\"'),
-                            "\\b" => AstNode::Byte(8),
-                            "\\f" => AstNode::Byte(12),
-                            "\\n" => AstNode::Byte(b'\n'),
-                            "\\r" => AstNode::Byte(b'\r'),
-                            "\\t" => AstNode::Byte(b'\t'),
-                            _ => unreachable!(),
-                        }
-                    }
-                    Rule::escaped_hex => {
-                        // this is exactly 4 characters, the last two are the hex
-                        AstNode::Byte(u8::from_str_radix(&rule.as_str()[2..], 16).unwrap())
-                    }
-                    _ => unreachable!(),
-                })
+                .map(byte_from_char)
                 .chain(vec![AstNode::Byte(0)])
                 .rev()
                 .for_each(|node| stack.push(node)),
+            Rule::char => stack.push(byte_from_char(pair)),
             _ => panic!("Unexpected rule {:?} in qoutation", pair.as_str()),
         };
 
@@ -444,7 +428,7 @@ impl<'a> BFJoyParser<'a> {
                 self.generated.get(&*atomic).unwrap().to_string()
             }
             AstNode::Byte(n) => self.constants.get(*n as usize).unwrap().to_string(),
-            AstNode::Builtin(name) => self.builtins.get(name.as_str()).unwrap().to_string(),
+            AstNode::Brainfuck(code) => code.to_string(),
         }
     }
 
@@ -548,5 +532,30 @@ impl<'a> BFJoyParser<'a> {
         order.push(name);
 
         Ok(())
+    }
+}
+
+// generates a byte from a character constant
+fn byte_from_char(rule: Pair<Rule>) -> AstNode {
+    match rule.as_rule() {
+        Rule::char => AstNode::Byte(rule.as_str().bytes().next().unwrap()),
+        Rule::escaped => {
+            match rule.as_str() {
+                // "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+                "\\\\" => AstNode::Byte(b'\\'),
+                "\\\"" => AstNode::Byte(b'\"'),
+                "\\b" => AstNode::Byte(8),
+                "\\f" => AstNode::Byte(12),
+                "\\n" => AstNode::Byte(b'\n'),
+                "\\r" => AstNode::Byte(b'\r'),
+                "\\t" => AstNode::Byte(b'\t'),
+                _ => unreachable!(),
+            }
+        }
+        Rule::escaped_hex => {
+            // this is exactly 4 characters, the last two are the hex
+            AstNode::Byte(u8::from_str_radix(&rule.as_str()[2..], 16).unwrap())
+        }
+        _ => unreachable!(),
     }
 }

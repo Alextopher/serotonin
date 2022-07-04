@@ -1,18 +1,74 @@
+# dup (a -- a a)
+dup == `[->+>+<<]>>[-<<+>>]<`;
+
+# drop (a -- )
+drop == `[-]<`;
+
+# swap (a b -- b a)
+swap == `<[->>+<<]>[-<+>]>[-<+>]<`;
+
+# over (a b -- a b a)
+over == `<[->>+>+<<<]>>>[-<<<+>>>]<`;
+
+# rot (a b c -- b c a)
+rot == `<<[->>>+<<<]>[-<+>]>[-<+>]>[-<+>]<`;
+
+# print (a -- a)
+print == `.`;
+
 # pop (a -- )
 # prints a to stdout and then drops it
 pop == print drop;
+
+# read ( -- a)
+# read a from stdin
+read == `>,`;
+
+# inc (a -- a+1)
+inc == `+`;
+
+# dec (a -- a-1)
+dec == `-`;
+
+# + (a b -- a+b)
++ == `[-<+>]<`;
+
+# - (a b -- a-b)
+- == `[-<->]<`;
+
+# booleans
+true == 1;
+false == 0;
+
+# eq (a b -- a==b)
+# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+eq == `<[->-<]+>[<->[-]]<`;
+
+# zeq (a -- a==0)
+zeq == `>+<[>[-]<[-]]>[-<+>]<`;
+
+# not (a -- !a)
+# c-like ! operator. If a == 0 then !a == 1 otherwise !a == 0
+# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+not == `>+<[[-]>-<]>[<+>-]<`;
 
 # neq (a b -- a != b)
 # returns 1 if a != b otherwise returns 0
 neq == eq not;
 
-# booleans
-true == 1;
-false == 0;
+# divmod (n d -- n%d n/d)
+# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
 
 # dupn (a n -- a a ... a)
 # dupn (a 0 -- )
 dupn == [dup dec swap 0 neq] [drop over swap] while drop drop;
 
 # multiplies the two numbers on the top of the stack
-mul == 0 rot rot dupn [swap dup 0 neq] [drop + print] while drop;
+mul == 0 rot rot dupn [swap dup 0 neq] [drop +] while drop;
+
+# pops a number and prints it as decimal
+popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;
+
+# prints a number as decimal
+printd == dup popd;
