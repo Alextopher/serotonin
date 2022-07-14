@@ -62,10 +62,10 @@ divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
 
 # dupn (a n -- a a ... a)
 # dupn (a 0 -- )
-dupn == [dup dec swap 0 neq] [drop over swap] while drop drop;
+dupn == [dup dec swap] [drop over swap] while drop drop;
 
 # multiplies the two numbers on the top of the stack
-mul == 0 rot rot dupn [swap dup 0 neq] [drop +] while drop;
+mul == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
 
 # pops a number and prints it as decimal
 popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;

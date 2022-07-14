@@ -9,12 +9,15 @@ pub fn load_compositions<'a>() -> HashMap<&'a str, (usize, &'a str)> {
     let mut compositions = HashMap::new();
 
     compositions.insert("while", (2, "{0}[{1}{0}]<"));
-    compositions.insert("ifte", (3, "{0}[>>+<<-]+>>[{1}<<->>[<+>-]]<[>+<-]<[>{2}<-]>>[-]<<<"));
+    compositions.insert(
+        "ifte",
+        (3, "{0}[>>+<<-]+>>[{1}<<->>[<+>-]]<[>+<-]<[>{2}<-]>>[-]<<<"),
+    );
 
     compositions
 }
 
-// Creates some lightly code golfed soultions 
+// Creates some lightly code golfed soultions
 pub fn generate_constants() -> Vec<String> {
     // 256 different constants
     let mut constants: Vec<String> = Vec::new();
@@ -50,7 +53,7 @@ pub fn generate_constants() -> Vec<String> {
         for i in 1..=255 {
             let len = constants[i].len();
             if constants[i - 1].len() + 1 < len {
-                constants[i] =  "+".to_string() + &constants[i - 1];
+                constants[i] = "+".to_string() + &constants[i - 1];
                 updated = true;
             }
 
@@ -61,7 +64,7 @@ pub fn generate_constants() -> Vec<String> {
         }
 
         if !updated {
-            break
+            break;
         }
     }
 
@@ -69,13 +72,12 @@ pub fn generate_constants() -> Vec<String> {
 }
 
 // generates the code to add a number to the stack
-fn number_dumb<T>(n: T) -> String
-where
-    T: num::PrimInt + num::Unsigned,
-{
+fn number_dumb(n: u16) -> String {
     let mut result = String::from(">");
 
-    num::range(T::zero(), n).for_each(|_| result.push_str("+"));
+    for _ in 0..n {
+        result.push('+');
+    }
 
     result
 }

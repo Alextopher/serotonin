@@ -2,6 +2,7 @@
 extern crate pest;
 
 use crate::parser::BFJoyParser;
+use rayon::prelude::*;
 use std::num::Wrapping;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -174,37 +175,48 @@ fn multiple_test(joy: String, inputs: Vec<Vec<Wrapping<u8>>>, outputs: Vec<Vec<W
 
     // optimize the brainfuck code
     let instructions = optimize(parse(&mut code.bytes()));
-    println!("{:?}", instructions);
 
     // run the code
-    for (input, output) in inputs.iter().zip(outputs.iter()) {
-        // run the interpreter
-        let mut result = vec![];
-        let mut interpreter = Interpreter::new();
-        interpreter.run(instructions.clone(), input, &mut result);
+    inputs
+        .iter()
+        .zip(outputs.iter())
+        .for_each(|(input, output)| {
+            // run the interpreter
+            let mut result = vec![];
+            let mut interpreter = Interpreter::new();
+            interpreter.run(instructions.clone(), input, &mut result);
 
-        // verify the tape is set to zeros
-        match verify_tape(interpreter.tape) {
-            Some(i) => panic!(
-                "Input {:?}: NonZeroTape at position {}\n{:?}",
-                input, i, interpreter.tape
-            ),
-            None => {}
-        }
+            // verify the tape is set to zeros
+            match verify_tape(interpreter.tape) {
+                Some(i) => panic!(
+                    "Input {:?}: NonZeroTape at position {}\n{:?}",
+                    input,
+                    i,
+                    interpreter.tape[..=i].to_vec()
+                ),
+                None => {}
+            }
 
-        assert_eq!(
-            result,
-            output.clone(),
-            "Input {:?}: expected output {:?} but got {:?}",
-            input,
-            output,
-            result
-        );
-    }
+            // Verify that the data pointer is at the start of the tape
+            assert_eq!(
+                interpreter.pointer, 0,
+                "\n{joy}\n Input {input:?}: tape ended at position {} instead of 0",
+                interpreter.pointer
+            );
+
+            assert_eq!(
+                result,
+                output.clone(),
+                "\n{joy}\n Input {:?}: expected output {:?} but got {:?}",
+                input,
+                output,
+                result
+            );
+        })
 }
 
 #[test]
-fn test_ints() {
+fn ints() {
     // test creating all possible integers
     for i in (0u8..=255).map(Wrapping) {
         // main == N print;
@@ -216,12 +228,11 @@ fn test_ints() {
 }
 
 #[test]
-fn test_hex() {
+fn hex() {
     // test creating all possible hexadecimal numbers
     for i in (0u8..=255).map(Wrapping) {
         // main == N print;
         let code = format!("IMPORT std; main == {:#04x} pop;", i);
-        println!("{}", code);
         let input = vec![];
         let output = vec![i];
         single_test(code, input, output);
@@ -246,7 +257,7 @@ fn text_read_pop() {
 }
 
 #[test]
-fn test_add() {
+fn add() {
     let code = format!("IMPORT std; main == read read + pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -263,7 +274,7 @@ fn test_add() {
 }
 
 #[test]
-fn test_sub() {
+fn sub() {
     let code = format!("IMPORT std; main == read read - pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -280,7 +291,7 @@ fn test_sub() {
 }
 
 #[test]
-fn test_dup() {
+fn dup() {
     let code = format!("IMPORT std; main == read dup pop pop;");
     let inputs = (0u8..=255).map(Wrapping).map(|i| vec![i]).collect();
     let outputs = (0u8..=255).map(Wrapping).map(|i| vec![i, i]).collect();
@@ -288,7 +299,7 @@ fn test_dup() {
 }
 
 #[test]
-fn test_drop() {
+fn drop() {
     let code = format!("IMPORT std; main == read drop print;");
     let inputs = (0u8..=255).map(Wrapping).map(|i| vec![i]).collect();
     let outputs = (0u8..=255)
@@ -299,7 +310,7 @@ fn test_drop() {
 }
 
 #[test]
-fn test_swap() {
+fn swap() {
     // main == read read swap pop pop;
     let code = format!("IMPORT std; main == read read swap pop pop;");
     let mut inputs = Vec::new();
@@ -318,7 +329,7 @@ fn test_swap() {
 }
 
 #[test]
-fn test_over() {
+fn over() {
     // main == read read over pop pop pop;
     let code = format!("IMPORT std; main == read read over pop pop pop;");
     let mut inputs = Vec::new();
@@ -337,7 +348,7 @@ fn test_over() {
 }
 
 #[test]
-fn test_rot() {
+fn rot() {
     let code = format!("IMPORT std; main == read read read rot pop pop pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -356,7 +367,7 @@ fn test_rot() {
 }
 
 #[test]
-fn test_inc() {
+fn inc() {
     let code = format!("IMPORT std; main == read inc pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -371,7 +382,7 @@ fn test_inc() {
 }
 
 #[test]
-fn test_dec() {
+fn dec() {
     let code = format!("IMPORT std; main == read dec pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -386,7 +397,7 @@ fn test_dec() {
 }
 
 #[test]
-fn test_eq() {
+fn eq() {
     let code = format!("IMPORT std; main == read read eq pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -403,7 +414,7 @@ fn test_eq() {
 }
 
 #[test]
-fn test_zeq() {
+fn zeq() {
     let code = format!("IMPORT std; main == read zeq pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -421,7 +432,7 @@ fn test_zeq() {
 }
 
 #[test]
-fn test_not() {
+fn not() {
     let code = format!("IMPORT std; main == read not pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -440,7 +451,7 @@ fn test_not() {
 }
 
 #[test]
-fn test_neq() {
+fn neq() {
     let code = format!("IMPORT std; main == read read neq pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -457,7 +468,7 @@ fn test_neq() {
 }
 
 // #[test]
-// fn test_ifte() {
+// fn ifte() {
 //     let code = format!("IMPORT std; main == read [read eq] [inc pop] [dec pop] ifte;");
 //     let mut inputs = Vec::new();
 //     let mut outputs = Vec::new();
@@ -478,20 +489,39 @@ fn test_neq() {
 // }
 
 #[test]
-fn test_mul() {
-    // for now this just tests multiply because that's the only thing that uses dupn
+fn dupn() {
+    // `0 dupn` will behave like `drop drop`
+    let code = format!("IMPORT std; main == read 0 dupn;");
+    let inputs = (0u8..=255).map(Wrapping).map(|i| vec![i]).collect();
+    let outputs = vec![];
+    multiple_test(code, inputs, outputs);
+
+    // `n dupn` will be checked for correctness by using n pops
+    (1..=255).into_par_iter().for_each(|n| {
+        let pops = (0..n).map(|_| "pop").collect::<Vec<_>>().join(" ");
+        let code = format!("IMPORT std; main == read {n} dupn {pops};");
+
+        let inputs = (0..=10).map(|i| vec![Wrapping(i)]).collect();
+        let outputs = (0..=10).map(|i| vec![Wrapping(i); n]).collect();
+
+        multiple_test(code, inputs, outputs);
+    })
+}
+
+#[test]
+fn mul() {
     let code = format!("IMPORT std; main == read read mul pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
 
-    // test 1000 random pairs
-    (0..100).for_each(|_i| {
+    // test 100 random pairs
+    for _ in 0..100 {
         let a = rand::random::<Wrapping<u8>>();
         let b = rand::random::<Wrapping<u8>>();
 
         inputs.push(vec![a, b]);
         outputs.push(vec![a * b]);
-    });
+    }
 
     // add some special cases
     for i in (0u8..=255).map(Wrapping) {
@@ -517,7 +547,7 @@ fn test_mul() {
 
 // Tests for the u16 module
 #[test]
-fn test_adc() {
+fn adc() {
     let code = format!("IMPORT std u16; main == read read addc pop pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -538,7 +568,7 @@ fn test_adc() {
 }
 
 #[test]
-fn test_incc() {
+fn incc() {
     let code = format!("IMPORT std u16; main == read incc pop pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();

@@ -332,22 +332,20 @@ impl<'a> BFJoyParser<'a> {
                 brainfuck.pop();
                 stack.push(AstNode::Brainfuck(brainfuck));
             }
-            Rule::integer => {
-                match pair.as_str().parse::<u8>() {
-                    Ok(byte) => stack.push(AstNode::Byte(byte)),
-                    Err(err) => {
-                        return Some(Error::new_from_span(
-                            ErrorVariant::CustomError {
-                                message: format!("{}", err),
-                            },
-                            pair.as_span(),
-                        ))
-                    }
-                } 
-            }
+            Rule::integer => match pair.as_str().parse::<u8>() {
+                Ok(byte) => stack.push(AstNode::Byte(byte)),
+                Err(err) => {
+                    return Some(Error::new_from_span(
+                        ErrorVariant::CustomError {
+                            message: format!("{}", err),
+                        },
+                        pair.as_span(),
+                    ))
+                }
+            },
             Rule::hex_integer => {
                 // remove the 0x
-                match u8::from_str_radix( &pair.as_str()[2..], 16) {
+                match u8::from_str_radix(&pair.as_str()[2..], 16) {
                     Ok(byte) => stack.push(AstNode::Byte(byte)),
                     Err(err) => {
                         return Some(Error::new_from_span(
@@ -358,7 +356,7 @@ impl<'a> BFJoyParser<'a> {
                         ))
                     }
                 }
-            },
+            }
             Rule::string => pair
                 .into_inner()
                 .map(byte_from_char)

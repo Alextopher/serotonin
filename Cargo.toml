@@ -9,6 +9,8 @@ build = "src/build.rs"
 [dependencies]
 pest = "2.0"
 pest_derive = "2.0"
-num = "0.4.0"
 include_dir = "0.7.2"
+
+[dev-dependencies]
 rand = "0.8.5"
+rayon = "1.5.3"
