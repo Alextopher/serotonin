@@ -14,4 +14,4 @@ include_dir = "0.7.2"
 [dev-dependencies]
 rand = "0.8.5"
 rayon = "1.5.3"
-bf_instrumentator = { git = "https://github.com/Alextopher/bf_instrumentator", version = "0.1.1" }
+bf_instrumentor = { git = "https://github.com/Alextopher/bf_instrumentor", version = "0.1.2" }

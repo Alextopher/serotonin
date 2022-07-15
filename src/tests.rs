@@ -24,10 +24,11 @@ fn multiple_test(joy: String, inputs: Vec<Vec<Wrapping<u8>>>, outputs: Vec<Vec<W
     assert!(!code.is_empty(), "code failed to compile");
 
     // run the code
-    let errors = bf_instrumentator::run_bf_o3(&code, inputs, outputs);
+    let errors = bf_instrumentor::run_bf_o2(&code, inputs, outputs, 1000000);
 
     if !errors.is_empty() {
         errors.iter().for_each(|err| println!("{:?}", err));
+        panic!("{} errors occurred", errors.len());
     }
 }
 

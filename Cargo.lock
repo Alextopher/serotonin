@@ -9,15 +9,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
-name = "bf_instrumentator"
-version = "0.1.1"
-source = "git+https://github.com/Alextopher/bf_instrumentator#8979858c4a6815a6c8d2cbf11fdbd4870e3cca6f"
+name = "bf_instrumentor"
+version = "0.1.2"
+source = "git+https://github.com/Alextopher/bf_instrumentor#1f4d8e191197ec9c60eab8a89fb6bb95bd5bd38a"
 
 [[package]]
 name = "bfjoy"
 version = "0.2.0"
 dependencies = [
- "bf_instrumentator",
+ "bf_instrumentor",
  "include_dir",
  "pest",
  "pest_derive",
