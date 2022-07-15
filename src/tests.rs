@@ -56,7 +56,7 @@ fn hex() {
 }
 
 #[test]
-fn text_read_pop() {
+fn read_pop() {
     let code = format!("IMPORT std; main == read read pop pop;");
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();

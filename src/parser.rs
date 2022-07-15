@@ -44,8 +44,6 @@ pub struct Module {
     definitions: HashMap<String, Rc<Definition>>,
 }
 
-impl Module {}
-
 #[derive(Debug)]
 pub struct Definition {
     name: String,
@@ -58,26 +56,26 @@ pub struct Definition {
 pub enum AstNode {
     Qoutation(Vec<AstNode>),
     Composition(String, Vec<AstNode>),
-    // Atomic is a special composition that requires zero qoutations
+    // Atomic is a function that requires zero qoutations
     Atomic(RefCell<String>),
-    // Byte is a special composition that adds a single byte to the stack
+    // Byte is a special function that adds a single byte to the stack
     Byte(u8),
-    // Brainfuck is a special composition for manually written unsafe compositions
+    // Brainfuck is a special function for that unsafely preforms brainfuck operations
     Brainfuck(String),
 }
 
 impl AstNode {
     // looks through the body of the definition and updates all atomics to their fully qualified names
-    fn solve_atomic(&mut self, atomic: &str, qualified: &str) {
+    fn qualify_atomics(&mut self, atomic: &str, qualified: &str) {
         match self {
             AstNode::Qoutation(compositions) => {
                 for composition in compositions {
-                    composition.solve_atomic(atomic, qualified)
+                    composition.qualify_atomics(atomic, qualified)
                 }
             }
             AstNode::Composition(_, qoutations) => {
                 for qoutation in qoutations {
-                    qoutation.solve_atomic(atomic, qualified)
+                    qoutation.qualify_atomics(atomic, qualified)
                 }
             }
             AstNode::Atomic(cell) => {
@@ -155,10 +153,11 @@ impl<'a> BFJoyParser<'a> {
                 Rule::imports => {
                     // parse the imports
                     for name in pair.into_inner() {
-                        // check if we are already building this module
+                        // If we are already building this module then we've created a circular dependency and need to report an error
                         if self.building.contains(&name.as_str().to_string()) {
                             // build the cycle so it can be reported
                             let mut cycle = Vec::new();
+
                             while self.building.last().unwrap() != name.as_str() {
                                 cycle.push(self.building.pop().unwrap());
                             }
@@ -182,9 +181,10 @@ impl<'a> BFJoyParser<'a> {
                             ));
                         }
 
-                        // check if the module has been loaded
-                        let module = if self.modules.contains_key(name.as_str()) {
-                            self.modules.get(name.as_str()).unwrap().to_owned()
+                        // If we have already parsed this module so we can quickly return a reference to it
+                        // If not then we need to find and parse it.
+                        let module = if let Some(module) = self.modules.get(name.as_str()) {
+                            module.clone()
                         } else {
                             let file = LIBRARIES.get_file(name.as_str().to_string() + ".joy");
                             match file {
@@ -210,6 +210,7 @@ impl<'a> BFJoyParser<'a> {
                                     module
                                 }
                                 None => {
+                                    // TODO check more locations to find the module
                                     return Err(Error::new_from_span(
                                         ErrorVariant::CustomError {
                                             message: format!("Could not find module"),
@@ -224,6 +225,7 @@ impl<'a> BFJoyParser<'a> {
                         self.modules.insert(name.as_str().to_string(), module);
                     }
                 }
+                // If we are hitting this block then the module has no imports
                 Rule::definition_sequence => match self.definition_sequence(pair) {
                     Ok(defs) => definitions = defs,
                     Err(err) => return Err(err),
@@ -334,7 +336,7 @@ impl<'a> BFJoyParser<'a> {
             Rule::atomic => {
                 let name = pair.as_str();
 
-                // check if the composition is in our list of special compositions
+                // Check if the atomic is a builtin composition function such as "if" or "while"
                 if let Some((qoutations, _)) = self.compositions.get(name) {
                     let qoutations = stack.split_off(stack.len() - qoutations);
                     stack.push(AstNode::Composition(name.to_string(), qoutations));
@@ -463,7 +465,9 @@ impl<'a> BFJoyParser<'a> {
         }
     }
 
-    // Create a topological ordering of the definitions using DFS
+    // Creates a topological ordering of the fully qualified definitions using DFS. Consider
+    // IMPORT std; main == read pop;
+    // could return "std.read" -> "std.print" -> "std.drop" -> "std.pop" -> "main.main"
     fn create_topological_order(&self, module: Rc<Module>) -> Result<Vec<String>, String> {
         let mut visited = HashSet::new();
         let mut working = HashSet::new();
@@ -492,7 +496,7 @@ impl<'a> BFJoyParser<'a> {
         }
 
         if working.contains(&name) {
-            return Err(format!("Cyclic dependency detected: {}", name));
+            return Err(format!("Cyclic dependency detected for {}", name));
         }
 
         working.insert(name.clone());
@@ -522,7 +526,7 @@ impl<'a> BFJoyParser<'a> {
                 let full_name = format!("{}.{}", &module.name, def.name);
 
                 let mut body = definition.body.borrow_mut();
-                body.solve_atomic(&dep, &full_name);
+                body.qualify_atomics(&dep, &full_name);
 
                 // check if the definition is in the same module
                 if let Err(e) = self.visit(visited, working, order, full_name) {
@@ -531,12 +535,13 @@ impl<'a> BFJoyParser<'a> {
 
                 found = true;
             } else {
+                // Check every module in scope to see if it has the definition
                 for scope in module.scopes.iter().rev() {
                     if let Some(def) = scope.definitions.get(&dep) {
                         let full_name = format!("{}.{}", &scope.name, def.name);
 
                         let mut body = definition.body.borrow_mut();
-                        body.solve_atomic(&dep, &full_name);
+                        body.qualify_atomics(&dep, &full_name);
 
                         if let Err(e) = self.visit(visited, working, order, full_name) {
                             return Err(e);

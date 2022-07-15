@@ -18,6 +18,8 @@ pub fn load_compositions<'a>() -> HashMap<&'a str, (usize, &'a str)> {
 }
 
 // Creates some lightly code golfed soultions
+// The "general" idea of these solutions is to represent a number as a*b+c
+// such that a+b+|c| is minimized
 pub fn load_code_golfed_constants() -> Vec<String> {
     // 256 different constants
     let mut constants: Vec<String> = Vec::new();

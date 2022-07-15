@@ -1,17 +1,19 @@
-use bfjoy::parser::BFJoyParser;
+use bfjoy::{bfoptimizer, parser::BFJoyParser};
 use std::{io::Read, process::exit};
 
 fn compile(contents: &str, file_name: String) -> String {
     // build the AST
     let mut parser = BFJoyParser::new();
 
-    match parser.module(contents, file_name) {
+    let code = match parser.module(contents, file_name) {
         Ok(module) => parser.generate(module).unwrap(),
         Err(err) => {
             eprintln!("{}", err);
             exit(1);
         }
-    }
+    };
+
+    bfoptimizer::optimize_bf(code)
 }
 
 fn main() {
