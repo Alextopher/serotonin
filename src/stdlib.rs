@@ -18,7 +18,7 @@ pub fn load_compositions<'a>() -> HashMap<&'a str, (usize, &'a str)> {
 }
 
 // Creates some lightly code golfed soultions
-pub fn generate_constants() -> Vec<String> {
+pub fn load_code_golfed_constants() -> Vec<String> {
     // 256 different constants
     let mut constants: Vec<String> = Vec::new();
 
@@ -69,6 +69,14 @@ pub fn generate_constants() -> Vec<String> {
     }
 
     constants.iter().map(|block| format!(">{block}")).collect()
+}
+
+pub fn load_simple_constants() -> Vec<String> {
+    let mut constants: Vec<String> = Vec::new();
+    for i in 0..=255 {
+        constants.push(number_dumb(i));
+    }
+    constants
 }
 
 // generates the code to add a number to the stack

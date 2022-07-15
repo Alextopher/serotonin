@@ -14,3 +14,4 @@ include_dir = "0.7.2"
 [dev-dependencies]
 rand = "0.8.5"
 rayon = "1.5.3"
+bf_instrumentator = { path = "../bf_instrumentator" }

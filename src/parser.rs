@@ -94,6 +94,12 @@ impl AstNode {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum CompileOption {
+    // CodeGolfConstants will use code golfed variants of the 256 constants
+    CodeGolfConstants,
+}
+
 pub struct BFJoyParser<'a> {
     modules: HashMap<String, Rc<Module>>,
     building: Vec<String>,
@@ -101,6 +107,7 @@ pub struct BFJoyParser<'a> {
     inputs: Vec<&'a str>,
     generated: HashMap<String, String>,
     constants: Vec<String>,
+    options: HashSet<CompileOption>,
 }
 
 impl<'a> BFJoyParser<'a> {
@@ -111,7 +118,17 @@ impl<'a> BFJoyParser<'a> {
             compositions: stdlib::load_compositions(),
             inputs: Vec::new(),
             generated: HashMap::new(),
-            constants: stdlib::generate_constants(),
+            constants: stdlib::load_simple_constants(),
+            options: HashSet::new(),
+        }
+    }
+
+    pub fn add_option(&mut self, option: CompileOption) {
+        self.options.insert(option);
+        match option {
+            CompileOption::CodeGolfConstants => {
+                self.constants = stdlib::load_code_golfed_constants();
+            }
         }
     }
 

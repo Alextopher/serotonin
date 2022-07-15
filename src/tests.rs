@@ -5,155 +5,6 @@ use crate::parser::BFJoyParser;
 use rayon::prelude::*;
 use std::num::Wrapping;
 
-#[derive(Debug, PartialEq, Clone)]
-enum Op {
-    // add or subtract
-    Change(i32),
-    // move left or right
-    Move(i32),
-    // .
-    Print,
-    // ,
-    Read,
-    // [ ... ]
-    Loop(Box<[Op]>),
-    // [-]
-    Zero,
-}
-
-fn parse(it: &mut impl Iterator<Item = u8>) -> Box<[Op]> {
-    let mut buf = vec![];
-    while let Some(c) = it.next() {
-        buf.push(match c {
-            b'-' => Op::Change(-1),
-            b'+' => Op::Change(1),
-            b'<' => Op::Move(-1),
-            b'>' => Op::Move(1),
-            b'.' => Op::Print,
-            b',' => Op::Read,
-            b'[' => Op::Loop(parse(it)),
-            b']' => break,
-            _ => continue,
-        });
-    }
-    buf.into_boxed_slice()
-}
-
-fn optimize(ops: Box<[Op]>) -> Box<[Op]> {
-    fn replace_zeros(ops: Box<[Op]>) -> Box<[Op]> {
-        // check if the loop is [-] or [+]
-        if ops.len() == 1 && (ops[0] == Op::Change(1) || ops[0] == Op::Change(-1)) {
-            Box::new([Op::Zero])
-        } else {
-            let mut new_ops = vec![];
-            for op in ops.iter() {
-                let new_op = op.clone();
-                match new_op {
-                    Op::Loop(ops) => new_ops.push(Op::Loop(replace_zeros(ops.clone()))),
-                    _ => new_ops.push(new_op),
-                }
-            }
-            new_ops.into_boxed_slice()
-        }
-    }
-
-    let ops = replace_zeros(ops);
-    let mut new_ops: Vec<Op> = vec![];
-
-    for op in ops.into_iter() {
-        if new_ops.len() == 0 {
-            new_ops.push(op.clone());
-        } else {
-            match (new_ops.last_mut().unwrap(), op) {
-                (Op::Change(a), Op::Change(b)) => {
-                    *a += b;
-                }
-                (Op::Move(a), Op::Move(b)) => {
-                    *a += b;
-                }
-                (Op::Change(_), Op::Zero) => {
-                    new_ops.pop();
-                    new_ops.push(Op::Zero);
-                }
-                (Op::Zero, Op::Loop(_)) => {}
-                (Op::Loop(_), Op::Loop(_)) => {}
-                (_, op) => new_ops.push(op.clone()),
-            }
-        }
-    }
-
-    new_ops.into_boxed_slice()
-}
-
-// a dead simple BF interpreter
-struct Interpreter {
-    tape: [Wrapping<u8>; 65536],
-    pointer: usize,
-    input_pointer: usize,
-}
-
-impl Interpreter {
-    fn new() -> Self {
-        Self {
-            tape: [Wrapping(0); 65536],
-            pointer: 0,
-            input_pointer: 0,
-        }
-    }
-
-    fn run(
-        &mut self,
-        instructions: Box<[Op]>,
-        input: &Vec<Wrapping<u8>>,
-        output: &mut Vec<Wrapping<u8>>,
-    ) {
-        for instruction in instructions.iter() {
-            match instruction {
-                Op::Change(change) => {
-                    if *change > 0 {
-                        self.tape[self.pointer] += Wrapping(*change as u8);
-                    } else {
-                        self.tape[self.pointer] -= Wrapping(-change as u8);
-                    }
-                }
-                Op::Move(move_) => {
-                    if *move_ > 0 {
-                        self.pointer += *move_ as usize;
-                    } else {
-                        self.pointer -= (-move_) as usize;
-                    }
-                }
-                Op::Print => output.push(self.tape[self.pointer]),
-                Op::Read => {
-                    if self.input_pointer < input.len() {
-                        self.tape[self.pointer] = input[self.input_pointer];
-                        self.input_pointer += 1;
-                    } else {
-                        panic!("not enough input");
-                    }
-                }
-                Op::Loop(instructions) => {
-                    while self.tape[self.pointer] != Wrapping(0) {
-                        self.run(instructions.clone(), input, output);
-                    }
-                }
-                Op::Zero => self.tape[self.pointer] = Wrapping(0),
-            }
-        }
-    }
-}
-
-fn verify_tape(tape: [Wrapping<u8>; 65536]) -> Option<usize> {
-    // verifies the tape is set to zeros
-    for i in 0..65536 {
-        if tape[i] != Wrapping(0) {
-            return Some(i);
-        }
-    }
-
-    None
-}
-
 fn single_test(joy: String, input: Vec<Wrapping<u8>>, output: Vec<Wrapping<u8>>) {
     multiple_test(joy, vec![input], vec![output])
 }
@@ -168,51 +19,16 @@ fn multiple_test(joy: String, inputs: Vec<Vec<Wrapping<u8>>>, outputs: Vec<Vec<W
         panic!("Failed to parse file {}", err);
     }
 
+    // compile to brainfuck
     let code = parser.generate(ast.unwrap()).unwrap();
-
-    // compile
     assert!(!code.is_empty(), "code failed to compile");
 
-    // optimize the brainfuck code
-    let instructions = optimize(parse(&mut code.bytes()));
-
     // run the code
-    inputs
-        .iter()
-        .zip(outputs.iter())
-        .for_each(|(input, output)| {
-            // run the interpreter
-            let mut result = vec![];
-            let mut interpreter = Interpreter::new();
-            interpreter.run(instructions.clone(), input, &mut result);
+    let errors = bf_instrumentator::run_bf_o3(&code, inputs, outputs);
 
-            // verify the tape is set to zeros
-            match verify_tape(interpreter.tape) {
-                Some(i) => panic!(
-                    "Input {:?}: NonZeroTape at position {}\n{:?}",
-                    input,
-                    i,
-                    interpreter.tape[..=i].to_vec()
-                ),
-                None => {}
-            }
-
-            // Verify that the data pointer is at the start of the tape
-            assert_eq!(
-                interpreter.pointer, 0,
-                "\n{joy}\n Input {input:?}: tape ended at position {} instead of 0",
-                interpreter.pointer
-            );
-
-            assert_eq!(
-                result,
-                output.clone(),
-                "\n{joy}\n Input {:?}: expected output {:?} but got {:?}",
-                input,
-                output,
-                result
-            );
-        })
+    if !errors.is_empty() {
+        errors.iter().for_each(|err| println!("{:?}", err));
+    }
 }
 
 #[test]
@@ -416,17 +232,12 @@ fn eq() {
 #[test]
 fn zeq() {
     let code = format!("IMPORT std; main == read zeq pop;");
-    let mut inputs = Vec::new();
-    let mut outputs = Vec::new();
-
-    for i in (0u8..=255).map(Wrapping) {
-        inputs.push(vec![i]);
-        outputs.push(vec![if i == Wrapping(0) {
-            Wrapping(1)
-        } else {
-            Wrapping(0)
-        }]);
-    }
+    let inputs = (0u8..=255).map(|i| vec![Wrapping(i)]).collect();
+    // [1] followed by 254 [0]
+    let outputs = vec![vec![Wrapping(1)]]
+        .into_iter()
+        .chain((0u8..=254).map(|_i| vec![Wrapping(0)]))
+        .collect();
 
     multiple_test(code, inputs, outputs);
 }
