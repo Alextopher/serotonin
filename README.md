@@ -30,8 +30,6 @@ $ bfjoy --optimize hello.joy
 
 TODO :)
 
-## [Design](design.md)
-
 ## License
 
 Copyright (c) 2022 Christopher Mahoney. This software is licensed under the [MIT license](https://opensource.org/licenses/MIT). Read [LICENSE](LICENSE) for all the details.
