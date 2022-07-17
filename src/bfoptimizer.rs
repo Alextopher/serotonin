@@ -2,12 +2,13 @@
 // - The compiler likes to generate code like ">program<". Remove the unnecessary moves.
 // - Many times we end up having code with unneccessary neighboring moves "<>>" simplify them.
 pub fn optimize_bf(mut bf: String) -> String {
-    // if the first character is ">" and the last character is "<", remove the first and last character
+    // - The compiler likes to generate code like ">program<". Remove the unnecessary moves.
     if bf.starts_with(">") && bf.ends_with("<") {
         bf.remove(0);
         bf.remove(bf.len() - 1);
     }
 
+    // - Many times we end up having code with unneccessary neighboring moves "<>>" simplify them.
     let mut acc = vec![];
     for c in bf.chars() {
         match (acc.last(), c) {

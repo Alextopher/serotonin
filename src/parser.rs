@@ -11,7 +11,10 @@ use pest::{
     Parser, Span,
 };
 
-use crate::stdlib::{self, LIBRARIES};
+use crate::{
+    config::Config,
+    stdlib::{self, LIBRARIES},
+};
 
 #[derive(Parser)]
 #[grammar = "joy.pest"]
@@ -105,28 +108,23 @@ pub struct BFJoyParser<'a> {
     inputs: Vec<&'a str>,
     generated: HashMap<String, String>,
     constants: Vec<String>,
-    options: HashSet<CompileOption>,
+    config: Config,
 }
 
 impl<'a> BFJoyParser<'a> {
-    pub fn new() -> BFJoyParser<'a> {
+    pub fn new(config: Config) -> BFJoyParser<'a> {
         BFJoyParser {
             modules: HashMap::new(),
             building: Vec::new(),
             compositions: stdlib::load_compositions(),
             inputs: Vec::new(),
             generated: HashMap::new(),
-            constants: stdlib::load_simple_constants(),
-            options: HashSet::new(),
-        }
-    }
-
-    pub fn add_option(&mut self, option: CompileOption) {
-        self.options.insert(option);
-        match option {
-            CompileOption::CodeGolfConstants => {
-                self.constants = stdlib::load_code_golfed_constants();
-            }
+            constants: if config.golf {
+                stdlib::load_code_golfed_constants()
+            } else {
+                stdlib::load_simple_constants()
+            },
+            config,
         }
     }
 

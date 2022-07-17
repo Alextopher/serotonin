@@ -1,3 +1,5 @@
 IMPORT std;
 
-main == 100 printd;
+# main == "Hello, World!" [] [pop] while;
+
+main == 180;

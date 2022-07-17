@@ -1,7 +1,7 @@
 #![cfg(test)]
 extern crate pest;
 
-use crate::parser::BFJoyParser;
+use crate::{config::Config, parser::BFJoyParser};
 use rayon::prelude::*;
 use std::num::Wrapping;
 
@@ -10,25 +10,42 @@ fn single_test(joy: String, input: Vec<Wrapping<u8>>, output: Vec<Wrapping<u8>>)
 }
 
 fn multiple_test(joy: String, inputs: Vec<Vec<Wrapping<u8>>>, outputs: Vec<Vec<Wrapping<u8>>>) {
-    // build the AST
-    let mut parser = BFJoyParser::new();
+    let configs = vec![
+        Config {
+            optimize: false,
+            golf: false,
+        },
+        Config {
+            optimize: true,
+            golf: false,
+        },
+        Config {
+            optimize: false,
+            golf: true,
+        },
+    ];
 
-    let ast = parser.module(&joy, "test".to_string());
+    for config in configs {
+        // build the AST
+        let mut parser = BFJoyParser::new(config);
 
-    if let Err(err) = ast {
-        panic!("Failed to parse file {}", err);
-    }
+        let ast = parser.module(&joy, "test".to_string());
 
-    // compile to brainfuck
-    let code = parser.generate(ast.unwrap()).unwrap();
-    assert!(!code.is_empty(), "code failed to compile");
+        if let Err(err) = ast {
+            panic!("{config}\nFailed to parse file {}", err);
+        }
 
-    // run the code
-    let errors = bf_instrumentor::run_bf_o2(&code, inputs, outputs, 1000000);
+        // compile to brainfuck
+        let code = parser.generate(ast.unwrap()).unwrap();
+        assert!(!code.is_empty(), "{config}\nCode failed to compile");
 
-    if !errors.is_empty() {
-        errors.iter().for_each(|err| println!("{:?}", err));
-        panic!("{} errors occurred", errors.len());
+        // run the code
+        let errors = bf_instrumentor::run_bf_o2(&code, inputs.clone(), outputs.clone(), 1000000);
+
+        if !errors.is_empty() {
+            errors.iter().for_each(|err| println!("{:?}", err));
+            panic!("{config}\n{} errors occurred", errors.len());
+        }
     }
 }
 
@@ -279,26 +296,26 @@ fn neq() {
     multiple_test(code, inputs, outputs);
 }
 
-// #[test]
-// fn ifte() {
-//     let code = format!("IMPORT std; main == read [read eq] [inc pop] [dec pop] ifte;");
-//     let mut inputs = Vec::new();
-//     let mut outputs = Vec::new();
+#[test]
+fn if_() {
+    let code = format!("IMPORT std; main == 'N' read read eq [swap drop 'Y' swap] if drop pop;");
+    let mut inputs = Vec::new();
+    let mut outputs = Vec::new();
 
-//     // test many comparisons
-//     for i in (0u8..=255).map(Wrapping) {
-//         for j in (0u8..=255).map(Wrapping) {
-//             inputs.push(vec![i, j]);
-//             outputs.push(vec![if i == j {
-//                 i + Wrapping(1)
-//             } else {
-//                 i - Wrapping(1)
-//             }]);
-//         }
-//     }
+    // test many comparisons
+    for i in (0u8..=255).map(Wrapping) {
+        for j in (0u8..=255).map(Wrapping) {
+            inputs.push(vec![i, j]);
+            if i == j {
+                outputs.push(vec![Wrapping(b'Y')]);
+            } else {
+                outputs.push(vec![Wrapping(b'N')]);
+            }
+        }
+    }
 
-//     multiple_test(code, inputs, outputs);
-// }
+    multiple_test(code, inputs, outputs);
+}
 
 #[test]
 fn dupn() {

@@ -9,10 +9,6 @@ pub fn load_compositions<'a>() -> HashMap<&'a str, (usize, &'a str)> {
     let mut compositions = HashMap::new();
 
     compositions.insert("while", (2, "{0}[{1}{0}]<"));
-    compositions.insert(
-        "ifte",
-        (3, "{0}[>>+<<-]+>>[{1}<<->>[<+>-]]<[>+<-]<[>{2}<-]>>[-]<<<"),
-    );
 
     compositions
 }

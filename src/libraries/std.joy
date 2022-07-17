@@ -68,7 +68,9 @@ dupn == [dup dec swap] [drop over swap] while drop drop;
 mul == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
 
 # pops a number and prints it as decimal
+# (n -- )
 popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;
 
 # prints a number as decimal
+# (n -- n)
 printd == dup popd;
