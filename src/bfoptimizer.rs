@@ -3,7 +3,7 @@
 // - Many times we end up having code with unneccessary neighboring moves "<>>" simplify them.
 pub fn optimize_bf(mut bf: String) -> String {
     // - The compiler likes to generate code like ">program<". Remove the unnecessary moves.
-    if bf.starts_with(">") && bf.ends_with("<") {
+    if bf.starts_with('>') && bf.ends_with('<') {
         bf.remove(0);
         bf.remove(bf.len() - 1);
     }

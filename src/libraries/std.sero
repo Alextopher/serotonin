@@ -1,0 +1,150 @@
+##### STACK MANIPULATION #####
+
+# dup (a -- a a)
+dup == `[->+>+<<]>>[-<<+>>]<`;
+dup (a) == a a;
+
+# drop (a -- )
+drop == `[-]<`;
+drop (@) == ;
+
+# swap (a b -- b a)
+swap == `<[->>+<<]>[-<+>]>[-<+>]<`;
+swap (a b) == b a;
+
+# over (a b -- a b a)
+over == `<[->>+>+<<<]>>>[-<<<+>>>]<`;
+over (a b) == a b a;
+
+# rot (a b c -- b c a)
+rot == `<<[->>>+<<<]>[-<+>]>[-<+>]>[-<+>]<`;
+rot (a b c) == b c a;
+
+##### IO #####
+
+# print (a -- a)
+print == `.`;
+
+# pop (a -- )
+# prints a to stdout and then drops it
+pop == print drop;
+
+# read ( -- a)
+# read a from stdin
+read == `>,`;
+
+# pops a number and prints it as decimal
+# (n -- )
+popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;
+
+# prints a number as decimal
+# (n -- n)
+printd == dup popd;
+
+##### BASIC MATH #####
+
+# inc (a -- a+1)
+inc == `+`;
+inc (a) ==! a inc pop;
+
+# dec (a -- a-1)
+dec == `-`;
+dec (a) ==! a dec pop;
+
+# + (a b -- a+b)
++ == `[-<+>]<`;
++ (b) ==? '+' b dupn spop;
++ (a b) ==! a b + pop;
+
+# - (a b -- a-b)
+- == `[-<->]<`;
+- (b) ==? `-` b dupn spop;
+- (a b) ==! a b - pop;
+
+# divmod (n d -- n%d n/d)
+# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
+
+# multiplies the two numbers on the top of the stack
+* == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
+* (b) ==? '\0[->' '+' b dupn '<]>[-<+>]' spopr;
+* (a b) ==! a b * pop;
+
+##### LOGIC #####
+
+# booleans
+true == 1;
+false == 0;
+
+# eq (a b -- a==b)
+# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+eq == `<[->-<]+>[<->[-]]<`;
+eq (a b) == false;
+eq (a a) == true;
+eq (0) == zeq;
+
+# zeq (a -- a==0)
+zeq == `>+<[>[-]<[-]]>[-<+>]<`;
+zeq (@) == false;
+zeq (0) == true;
+
+# not (a -- !a)
+# c-like ! operator. If a == 0 then !a == 1 otherwise !a == 0
+# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+not == `>+<[[-]>-<]>[<+>-]<`;
+not (@) == false;
+not (0) == true;
+
+# neq (a b -- a != b)
+# returns 1 if a != b otherwise returns 0
+neq == eq not;
+
+# dupn (a n -- a a ... a)
+# dupn (a 0 -- )
+_dupn! (a n) == n [] [dec `[->+<]<` a `>`] while; # fast way to calculate all of the constants
+dupn == [dup dec swap] [drop over swap] while drop drop;
+dupn (n) ==? '\x00[-' 15 [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spopr;
+dupn (a n) ==! a n _dupn! spop;
+
+##### STRINGS #####
+
+# spop (s -- )
+# string pop
+# pops a null terminated string
+spop == [] [pop] while;
+
+# sdrop (s -- )
+# string drop
+# drops a null terminated string
+sdrop == [] [drop] while;
+
+# sprint (s -- s)
+# string print
+# prints a null terminated string
+sprint == `[.<]>[>]<`;
+
+# spopr (s -- )
+# string pop reverse
+# pops a null terminated string in reverse
+spopr == `[<]>[.>]<` sdrop;
+
+# sprintr (s -- s)
+# string pop reverse
+# prints a null terminated string in reverse
+sprintr == `[<]>[.>]<`;
+
+# sread (-- s)
+# string read
+# input ['a', 'b', 'c', 'd'] is equivalent to
+# f == "abcd";
+sread == `,[>[>]<[[->+<]<],[->+<]>]`;
+
+# sreadr (-- s)
+# string read reverse
+# input ['a', 'b', 'c', 'd'] is equivalent to 
+# f == 'abcd';
+sreadr == `,[>,]<`;
+
+# slen (s -- l)
+# consumes s and returns it's len
+slen == `[[-]>[-<+>]<+<]`;

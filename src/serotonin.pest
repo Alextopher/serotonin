@@ -2,11 +2,9 @@
 // https://hypercubed.github.io/joy/html/j09imp.html
 
 // IMPORT stdlib math;
-// PRIVATE
-//   defs;
-//   defs;
-// PUBLIC
-//   defs;
+// def
+// def
+// def
 module = {
     SOI ~
     imports? ~
@@ -21,9 +19,6 @@ imports = {
 // alternative starting point if we want to compile a single function
 single_definition = _{ SOI ~ definition ~ EOI }
 
-// Reserved character
-reserved_character = { "[" | "]" | "{" | "}" | ";" | "`" }
-
 // Integer of any length
 integer = @{ ASCII_DIGIT+ }
 // Hexadecimal integer of any length
@@ -31,50 +26,63 @@ hex_integer = @{ "0x" ~ ASCII_HEX_DIGIT{2} }
 
 // handles strings
 string = ${ "\"" ~ ( char | escaped | escaped_hex )* ~ "\"" }
+raw_string = ${ "\'" ~ ( raw_char | escaped | escaped_hex )* ~ "\'" }
 char = { !("\"" | "\\") ~ ANY }
-escaped = { "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t") }
-escaped_hex = { "\\" ~ ("x" ~ ASCII_HEX_DIGIT{2}) }
+raw_char = { !("'" | "\\") ~ ANY }
+escaped = { "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | "0") }
+escaped_hex = @{ "\\" ~ ("x" ~ ASCII_HEX_DIGIT{2}) }
 
-// Reserved words
-reserved_word = _{ "==" | "MODULE" | "PRIVATE" | "PUBLIC" | "END" }
+// Characters that can be used in a function name
+good_character = { LETTER | DECIMAL_NUMBER | "*" | "+" | "-" | "_" | "!" }
 
 // atomic-symbol
 // any printing character which is not a reserved character or a digit or the single or double quote character
 // followed letters, digits, and some symbols
 atomic = @{
-    !(reserved_character | ASCII_DIGIT | "\"" | "'" | "." ) ~ ANY
-    ~ (ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "." )*
+    (!NUMBER ~ good_character) ~
+    (good_character | DECIMAL_NUMBER)*
 }
 
 // a brainfuck block, this allows for writing code manually (at the cost of any kind of safety)
-brainfuck = {
-    "`" ~ (">" | "<" | "+" | "-" | "." | "," | "[" | "]")* ~ "`"
+brainfuck = @{
+    (">" | "<" | "+" | "-" | "." | "," | "[" | "]")*
 }
 
 factor = _{
-    atomic
+    ("`" ~ brainfuck ~ "`")
     | hex_integer | integer
-    | string
-    | brainfuck
-    | ( "\'" ~ ( char | escaped | escaped_hex ) ~ "\'" )
-    // TODO: can I make sets? | ("{" ~ integer_constant ~ "}")
-    | ("[" ~ term ~ "]") 
+    | string | raw_string
+    | ("[" ~ term ~ "]")
+    | atomic
 }
 
 // a term is any number of factors
-term = { factor* }
-
-// maybe add type checking in the future?
-definition = {
-    atomic ~ "==" ~ term
-}
+term = ${ (factor ~ WHITESPACE*)* }
 
 // tweaked from the original joy language where
 //      definition_sequence = { definition ~ (";" ~ definition)* }
 // because I like the idea of having empty definition sequences
 definition_sequence = {
-    (definition ~ ";")*
+    definition*
 }
+
+definition = ${
+    atomic ~ WHITESPACE* ~ stack? ~ WHITESPACE* ~ definition_type ~ WHITESPACE+ ~ term ~ WHITESPACE* ~ ";"
+}
+
+definition_type = {
+    "==?" | "==!" | "=="
+}
+
+stack = {
+    "(" ~ ((stack_constant | stack_byte | stack_ignored_constant) ~ WHITESPACE*)* ~ ")"
+}
+
+stack_constant = { LOWERCASE_LETTER }
+// stack_qoutation = { UPPERCASE_LETTER }
+stack_byte = { ASCII_DIGIT+ }
+stack_ignored_constant = { "@" }
+// stack_ignored_qoutation = { "_" }
 
 /*
 # this is a comment.

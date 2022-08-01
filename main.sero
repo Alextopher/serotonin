@@ -1,0 +1,3 @@
+IMPORT std;
+
+main == "hello world!" spop;

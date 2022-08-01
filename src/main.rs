@@ -1,20 +1,10 @@
-use bfjoy::{bfoptimizer, config::Config, parser::BFJoyParser};
-use std::{io::Read, process::exit};
-
-fn compile(config: Config, contents: &str, file_name: &str) -> String {
-    // build the AST
-    let mut parser = BFJoyParser::new(config);
-
-    let code = match parser.module(contents, file_name.to_string()) {
-        Ok(module) => parser.generate(module).unwrap(),
-        Err(err) => {
-            eprintln!("{}", err);
-            exit(1);
-        }
-    };
-
-    bfoptimizer::optimize_bf(code)
-}
+use pest::error::Error;
+use serotonin::{
+    bfoptimizer,
+    config::Config,
+    parser::{compile, Rule},
+};
+use std::{collections::HashMap, io::Read, process::exit};
 
 fn main() {
     let app = clap::clap_app!(myapp =>
@@ -32,12 +22,6 @@ fn main() {
 
     // Read the file
     let file_name = matches.value_of("INPUT").unwrap();
-
-    // Require that the file ends with .joy
-    if !file_name.ends_with(".joy") {
-        eprintln!("Input file must be .joy");
-        exit(1);
-    }
 
     // Update BFJOY_GOLF and BFJOY_OPTIMIZE environment variables based on the command line arguments
     let config = if matches.is_present("golf") && matches.is_present("optimize") {
@@ -65,12 +49,9 @@ fn main() {
             let mut contents = String::new();
             file.read_to_string(&mut contents).unwrap();
 
-            let main = compile(config, &contents, "main");
-
-            if main == "" {
-                eprintln!("Missing function \"main\"");
-            } else {
-                println!("{main}")
+            match compile(&contents) {
+                Ok(c) => println!("{}", c),
+                Err(e) => println!("{}", e),
             }
         }
         Err(err) => {

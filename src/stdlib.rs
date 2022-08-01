@@ -18,10 +18,8 @@ pub fn load_compositions<'a>() -> HashMap<&'a str, (usize, &'a str)> {
 // such that a+b+|c| is minimized
 pub fn load_code_golfed_constants() -> Vec<String> {
     // 256 different constants
-    let mut constants: Vec<String> = Vec::new();
+    let mut constants: Vec<String> = vec![String::from("")];
 
-    // add 0
-    constants.push(String::from(""));
     for i in 1..=255 {
         // firstly generate the basic code
         // >{+}a[<{+}b>-]

@@ -1,5 +1,0 @@
-IMPORT std;
-
-# main == "Hello, World!" [] [pop] while;
-
-main == 180;

@@ -1,0 +1,11 @@
+# words take two cells to store and the top of the stack holds the low byte
+IMPORT std;
+
+# these are the most basic operations that can be built up into full word support
+# addc (a b -- a+b c)
+# c == 1 if a+b overflows
+addc == `+[>-<+]<[>>>+<[+>-<<]<[>]<-]>>[-<<+>>]>[<<+>>[-<<<+>>>]]<<<->`;
+
+# incc (a -- a+1 c)
+# c == 1 if a+b overflows
+incc == `+>+<[>-]>[>]<`;
