@@ -11,8 +11,9 @@ pest = "2.0"
 pest_derive = "2.0"
 include_dir = "0.7.2"
 clap = "3.2.12" 
+colored = "2.0.0"
 
 [dev-dependencies]
-rand = "0.8.5"
 rayon = "1.5.3"
+rand = "0.8.5"
 bf_instrumentor = { git = "https://github.com/Alextopher/bf_instrumentor", version = "0.1.2" }

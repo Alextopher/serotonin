@@ -103,7 +103,7 @@ neq == eq not;
 # dupn (a 0 -- )
 _dupn! (a n) == n [] [dec `[->+<]<` a `>`] while; # fast way to calculate all of the constants
 dupn == [dup dec swap] [drop over swap] while drop drop;
-dupn (n) ==? '\x00[-' 15 [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spopr;
+dupn (n) ==? '\x00[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spopr;
 dupn (a n) ==! a n _dupn! spop;
 
 ##### STRINGS #####
@@ -126,7 +126,7 @@ sprint == `[.<]>[>]<`;
 # spopr (s -- )
 # string pop reverse
 # pops a null terminated string in reverse
-spopr == `[<]>[.>]<` sdrop;
+spopr == `[<]>[.>]<` sdrop test.me;
 
 # sprintr (s -- s)
 # string pop reverse

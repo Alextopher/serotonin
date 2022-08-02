@@ -38,8 +38,12 @@ good_character = { LETTER | DECIMAL_NUMBER | "*" | "+" | "-" | "_" | "!" }
 // atomic-symbol
 // any printing character which is not a reserved character or a digit or the single or double quote character
 // followed letters, digits, and some symbols
+//
+// atomics may be split by a "." to make a qualified name
 atomic = @{
     (!NUMBER ~ good_character) ~
+    (good_character | DECIMAL_NUMBER)* ~
+    "."? ~
     (good_character | DECIMAL_NUMBER)*
 }
 
