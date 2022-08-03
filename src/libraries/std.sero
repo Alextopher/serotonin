@@ -126,7 +126,7 @@ sprint == `[.<]>[>]<`;
 # spopr (s -- )
 # string pop reverse
 # pops a null terminated string in reverse
-spopr == `[<]>[.>]<` sdrop test.me;
+spopr == `[<]>[.>]<` sdrop;
 
 # sprintr (s -- s)
 # string pop reverse
@@ -148,3 +148,7 @@ sreadr == `,[>,]<`;
 # slen (s -- l)
 # consumes s and returns it's len
 slen == `[[-]>[-<+>]<+<]`;
+
+##### Control Flow #####
+
+while (C B) ==? C spop "[" pop B spop C spop "]" pop; 

@@ -2,6 +2,7 @@ use crate::{pest::Parser, semantic::apply_semantics, stdlib::LIBRARIES};
 use pest::{
     error::{Error, ErrorVariant},
     iterators::{Pair, Pairs},
+    Span,
 };
 use pest_derive::Parser;
 use std::fmt::Write;
@@ -12,18 +13,40 @@ use std::{collections::HashMap, iter};
 struct PestParser;
 
 pub fn compile(name: &str, input: &str) -> Result<String, Vec<Error<Rule>>> {
+    // Time sections
+    let mut start = std::time::Instant::now();
+
     let pairs = match PestParser::parse(Rule::module, input) {
         Ok(pairs) => pairs,
         Err(e) => return Err(vec![e]),
     };
 
+    println!("Pest parsing took: {}us", start.elapsed().as_micros());
+    start = std::time::Instant::now();
+
     let this = parse_module_ast(name.to_owned(), pairs)?;
+
+    println!("Parsing took: {}us", start.elapsed().as_micros());
+    start = std::time::Instant::now();
 
     let mut asts = Dependencies::resolve(&this)?;
     asts.insert(name, this);
+    // println!(
+    //     "{}",
+    //     asts.get(name).unwrap().definitions.get("main").unwrap()[0]
+    // );
 
-    println!("{:?}", asts.get(name).unwrap().definitions.keys());
-    apply_semantics(&mut asts)?;
+    println!("Parsing imports took: {}us", start.elapsed().as_micros());
+    start = std::time::Instant::now();
+
+    let new_ast = apply_semantics(&mut asts)?;
+    // println!(
+    //     "{}",
+    //     new_ast.get(name).unwrap().definitions.get("main").unwrap()[0]
+    // );
+
+    println!("Checking semantics took: {}us", start.elapsed().as_micros());
+    start = std::time::Instant::now();
 
     Ok(String::new())
 }
@@ -37,14 +60,14 @@ pub(crate) struct Dependencies<'a> {
 pub(crate) enum StackArg {
     // Lowercase letter
     Position(char, u8),
-    // // Capital letter
-    // Qoutation(char),
+    // Capital letter
+    Qoutation(char, u8),
     // Number
     Byte(u8),
-    // -
+    // @
     IgnoredConstant,
-    // // _
-    // IgnoredQoutation,
+    // _
+    IgnoredQoutation,
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +102,11 @@ impl<'a> std::fmt::Display for StackArgs<'a> {
                 }
                 StackArg::Byte(n) => write!(f, "{} ", n)?,
                 StackArg::IgnoredConstant => write!(f, "@ ")?,
+                StackArg::Qoutation(_, n) => {
+                    // 0 -> A, 1 -> B, ...
+                    write!(f, "{} ", (b'A' + *n) as char)?;
+                }
+                StackArg::IgnoredQoutation => write!(f, "_ ")?,
             }
         }
         write!(f, "\u{8})")?;
@@ -86,7 +114,7 @@ impl<'a> std::fmt::Display for StackArgs<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum DefinitionType {
     // Functions compile to normal BF code
     // Results should be cached
@@ -131,6 +159,47 @@ impl Definition<'_> {
     }
 }
 
+impl std::fmt::Display for Definition<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let body = self
+            .body
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        match self.typ {
+            DefinitionType::Function => {
+                // No stack args
+                write!(f, "{} == {}", self.name, body)?;
+            }
+            DefinitionType::InlineComposition => {
+                write!(f, "{} {} == {}", self.name, self.stack_as_str(), body)?
+            }
+            DefinitionType::ConstantComposition => {
+                write!(f, "{} {} ==! {}", self.name, self.stack_as_str(), body)?
+            }
+            DefinitionType::Composition => {
+                write!(f, "{} {} ==? {}", self.name, self.stack_as_str(), body)?
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum Expression<'a> {
+    Constant(u8, Span<'a>),
+    Brainfuck(String, Span<'a>),
+    Function {
+        module: String,
+        name: String,
+        span: Span<'a>,
+    },
+    Quotation(Vec<Expression<'a>>, Span<'a>),
+}
+
 impl<'a> TryFrom<Pair<'a, Rule>> for Expression<'a> {
     type Error = Error<Rule>;
 
@@ -144,18 +213,18 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Expression<'a> {
                     Ok(Expression::Function {
                         module: String::from(module),
                         name: String::from(&name[1..]),
-                        pair,
+                        span: pair.as_span(),
                     })
                 } else {
                     Ok(Expression::Function {
                         module: String::new(),
                         name: pair.as_str().to_string(),
-                        pair,
+                        span: pair.as_span(),
                     })
                 }
             }
             Rule::hex_integer => match u8::from_str_radix(&pair.as_str()[2..], 16) {
-                Ok(byte) => Ok(Expression::Constant(byte, pair)),
+                Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
                 Err(err) => Err(Error::new_from_span(
                     ErrorVariant::CustomError {
                         message: format!("{}", err),
@@ -164,7 +233,7 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Expression<'a> {
                 )),
             },
             Rule::integer => match pair.as_str().parse::<u8>() {
-                Ok(byte) => Ok(Expression::Constant(byte, pair)),
+                Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
                 Err(err) => {
                     return Err(Error::new_from_span(
                         ErrorVariant::CustomError {
@@ -174,23 +243,62 @@ impl<'a> TryFrom<Pair<'a, Rule>> for Expression<'a> {
                     ))
                 }
             },
-            Rule::string => Ok(Expression::Quotation(
-                pair.clone()
-                    .into_inner()
-                    .map(constant_from_char)
-                    .chain(iter::once(Expression::Constant(0, pair.clone())))
-                    .rev()
-                    .collect(),
-                pair,
-            )),
+            Rule::string => {
+                let mut constants =
+                    vec![Expression::Constant(0, pair.as_span().get(0..1).unwrap())];
+                constants.extend(pair.clone().into_inner().map(constant_from_char));
+
+                Ok(Expression::Quotation(constants, pair.clone().as_span()))
+            }
             Rule::raw_string => Ok(Expression::Quotation(
                 pair.clone().into_inner().map(constant_from_char).collect(),
-                pair,
+                pair.as_span(),
             )),
-            Rule::brainfuck => Ok(Expression::Brainfuck(pair.as_str().to_string(), pair)),
-            Rule::term => Ok(Expression::Quotation(parse_term_ast(pair.clone())?, pair)),
+            Rule::brainfuck => Ok(Expression::Brainfuck(
+                pair.as_str().to_string(),
+                pair.as_span(),
+            )),
+            Rule::term => Ok(Expression::Quotation(
+                parse_term_ast(pair.clone())?,
+                pair.as_span(),
+            )),
             _ => unreachable!(),
         }
+    }
+}
+
+impl std::fmt::Display for Expression<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Do not print the span
+        match self {
+            Expression::Constant(c, _) => {
+                write!(f, "{}", c)?;
+            }
+            Expression::Quotation(expressions, _) => {
+                let body = expressions
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                write!(f, "[{}]", body)?;
+            }
+            Expression::Brainfuck(bf, _) => {
+                write!(f, "{}", bf)?;
+            }
+            Expression::Function {
+                module,
+                name,
+                span: _,
+            } => {
+                if module.is_empty() {
+                    write!(f, "{}", name)?;
+                } else {
+                    write!(f, "{}.{}", module, name)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -304,23 +412,6 @@ impl<'a> Dependencies<'a> {
 /// Functions can be defined to become compositions when they are given constants as arguments in certian positions.
 /// - This behavior is defined in the source code and requires use of additional syntax.
 /// -
-#[derive(Debug, Clone)]
-pub(crate) enum Expression<'a> {
-    Constant(u8, Pair<'a, Rule>),
-    Brainfuck(String, Pair<'a, Rule>),
-    Function {
-        module: String,
-        name: String,
-        pair: Pair<'a, Rule>,
-    },
-    Quotation(Vec<Expression<'a>>, Pair<'a, Rule>),
-    Composition {
-        qoutations: Vec<Expression<'a>>,
-        module: String,
-        name: String,
-        pair: Pair<'a, Rule>,
-    },
-}
 
 #[derive(Debug)]
 pub(crate) struct ModuleAst<'a> {
@@ -330,6 +421,7 @@ pub(crate) struct ModuleAst<'a> {
 }
 
 fn parse_module_ast(name: String, pairs: Pairs<Rule>) -> Result<ModuleAst, Vec<Error<Rule>>> {
+    // add input str to illicit layer
     let mut imports = Vec::new();
     let mut definitions: HashMap<String, Vec<Definition>> = HashMap::new();
 
@@ -362,8 +454,6 @@ fn parse_module_ast(name: String, pairs: Pairs<Rule>) -> Result<ModuleAst, Vec<E
             _ => unreachable!(),
         }
     }
-
-    imports.reverse();
 
     Ok(ModuleAst {
         name,
@@ -436,14 +526,21 @@ fn parse_definition_ast(pair: Pair<Rule>) -> Result<Definition, Error<Rule>> {
 
                             position_count += 1;
                         }
-                        // Rule::stack_qoutation => {
-                        //     stack.push(StackArgs::Qoutation(pair.as_str().chars().next().unwrap()))
-                        // }
+                        Rule::stack_qoutation => {
+                            let letter = pair.as_str().chars().next().unwrap();
+
+                            if let Some(pos) = positions.get(&letter) {
+                                stack.push(StackArg::Position(letter, *pos))
+                            } else {
+                                positions.insert(letter, position_count);
+                                stack.push(StackArg::Position(letter, position_count));
+                            }
+                        }
                         Rule::stack_byte => {
                             stack.push(StackArg::Byte(pair.as_str().parse::<u8>().unwrap()))
                         }
                         Rule::stack_ignored_constant => stack.push(StackArg::IgnoredConstant),
-                        // Rule::stack_ignored_qoutation => stack.push(StackArgs::IgnoredQoutation),
+                        Rule::stack_ignored_qoutation => stack.push(StackArg::IgnoredQoutation),
                         _ => unreachable!(),
                     }
                 }
@@ -499,5 +596,5 @@ fn constant_from_char(pair: Pair<Rule>) -> Expression {
         _ => unreachable!(),
     };
 
-    Expression::Constant(b, pair)
+    Expression::Constant(b, pair.as_span())
 }

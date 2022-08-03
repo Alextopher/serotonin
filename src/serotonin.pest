@@ -79,14 +79,14 @@ definition_type = {
 }
 
 stack = {
-    "(" ~ ((stack_constant | stack_byte | stack_ignored_constant) ~ WHITESPACE*)* ~ ")"
+    "(" ~ ((stack_constant | stack_qoutation | stack_byte | stack_ignored_constant | stack_ignored_qoutation) ~ WHITESPACE*)* ~ ")"
 }
 
 stack_constant = { LOWERCASE_LETTER }
-// stack_qoutation = { UPPERCASE_LETTER }
+stack_qoutation = { UPPERCASE_LETTER }
 stack_byte = { ASCII_DIGIT+ }
 stack_ignored_constant = { "@" }
-// stack_ignored_qoutation = { "_" }
+stack_ignored_qoutation = { "_" }
 
 /*
 # this is a comment.
