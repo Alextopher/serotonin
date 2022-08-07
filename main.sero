@@ -1,3 +1,6 @@
 IMPORT std;
 
-main == 100 popd;
+one == two;
+two == one;
+
+main == one;

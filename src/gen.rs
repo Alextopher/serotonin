@@ -5,7 +5,7 @@ use crate::{
 use bf_instrumentor::OptimizationLevel;
 use colored::Colorize;
 use either::Either;
-use pest::error::Error;
+use pest::error::{Error, ErrorVariant};
 use std::collections::{HashMap, HashSet};
 
 const MAX_ITERATIONS: usize = 1000000;
@@ -40,11 +40,20 @@ pub(crate) fn compile<'a>(
     // Add function to the build list
     builds.insert(def.unique_id);
 
+    println!("starting: {}", def.name);
     let result = compile_body(modules, &def.body, &constraints, builds)?;
+    println!("ending: {} | {}", def.name, result);
 
     builds.remove(&def.unique_id);
 
     Ok(result)
+}
+
+// Alerts the compiler to preform some action during compilation
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Message {
+    // Finished compiling a function and we can remove it from the build list
+    Finish(usize),
 }
 
 fn compile_body<'a>(
@@ -55,176 +64,210 @@ fn compile_body<'a>(
 ) -> Result<String, Error<Rule>> {
     let body = apply_constraints(constraints, body);
 
-    let mut work: Vec<Expression> = body.into_iter().rev().collect();
+    let mut work: Vec<Either<Expression, Message>> =
+        body.into_iter().rev().map(Either::Left).collect();
     let mut stack: Vec<Expression> = Vec::new();
 
     // add expression from the body onto the stack
     while let Some(expr) = work.pop() {
-        if let Expression::Function(module, name, _) = expr.clone() {
-            // Look up all definitions for the function in modules
-            let definitions = modules
-                .get(&module)
-                .unwrap()
-                .definitions
-                .get(&name)
-                .unwrap();
+        match expr {
+            Either::Left(expr) => {
+                if let Expression::Function(module, name, span) = expr.clone() {
+                    // Look up all definitions for the function in modules
+                    let definitions = modules
+                        .get(&module)
+                        .unwrap()
+                        .definitions
+                        .get(&name)
+                        .unwrap();
 
-            let mut function: Option<&Definition> = None;
-            let mut new_constraints = None;
-            for def in definitions.iter().rev() {
-                // skip the definition if it is already being built
-                if builds.contains(&def.unique_id) {
-                    continue;
-                }
-
-                // Check if we match the pattern
-                match &def.stack {
-                    Some(pattern) => match pattern_match(&stack, pattern) {
-                        Some(c) => {
-                            new_constraints = Some(c);
-                            function = Some(def);
-                            break;
+                    let mut function: Option<&Definition> = None;
+                    let mut new_constraints = None;
+                    for def in definitions.iter().rev() {
+                        // skip the definition if it is already being built
+                        if builds.contains(&def.unique_id) {
+                            continue;
                         }
-                        None => continue,
-                    },
-                    None => {
-                        function = Some(def);
-                        break;
+
+                        println!("trying: {} {}", def.name, def.stack_as_str());
+
+                        // Check if we match the pattern
+                        match &def.stack {
+                            Some(pattern) => match pattern_match(&stack, pattern) {
+                                Some(c) => {
+                                    new_constraints = Some(c);
+                                    function = Some(def);
+                                    break;
+                                }
+                                None => continue,
+                            },
+                            None => {
+                                function = Some(def);
+                                break;
+                            }
+                        }
                     }
-                }
-            }
 
-            let new_constraints = match new_constraints {
-                Some(c) => c,
-                None => HashMap::new(),
-            };
+                    let new_constraints = match new_constraints {
+                        Some(c) => c,
+                        None => HashMap::new(),
+                    };
 
-            // Depending on the function we have more work to do.
-            if let Some(def) = function {
-                match def.typ {
-                    DefinitionType::Function => {
-                        // Compile the function and add it to the stack as a bf block
-                        let bf = compile(modules, def, new_constraints, builds)?;
-                        // Remove the pattern from the stack
-                        stack.truncate(stack.len() - def.stack_size());
-                        stack.push(Expression::Brainfuck(bf, expr.span().clone()))
-                    }
-                    DefinitionType::InlineComposition => {
-                        // Extend the work list with the body of the function
-                        work.extend(
-                            apply_constraints(&new_constraints, &def.body)
-                                .into_iter()
-                                .rev(),
-                        );
+                    // Depending on the function we have more work to do.
+                    if let Some(def) = function {
+                        match def.typ {
+                            DefinitionType::Function => {
+                                // Add the function body to the work list
+                                builds.insert(def.unique_id);
+                                work.push(Either::Right(Message::Finish(def.unique_id)));
+                                work.extend(def.body.iter().rev().cloned().map(Either::Left));
+                            }
+                            DefinitionType::InlineComposition => {
+                                // Extend the work list with the body of the function
+                                builds.insert(def.unique_id);
+                                work.push(Either::Right(Message::Finish(def.unique_id)));
+                                work.extend(
+                                    apply_constraints(&new_constraints, &def.body)
+                                        .into_iter()
+                                        .rev()
+                                        .map(Either::Left),
+                                );
 
-                        // Remove the pattern from the stack
-                        stack.truncate(stack.len() - def.stack_size());
-                    }
-                    DefinitionType::ConstantComposition => {
-                        // Compile the definition with replacing constraints with thier values
-                        let bf = compile(modules, def, new_constraints, builds)?;
+                                // Remove the pattern from the stack
+                                stack.truncate(stack.len() - def.stack_size());
+                            }
+                            DefinitionType::ConstantComposition => {
+                                // Compile the definition with replacing constraints with thier values
+                                let bf = compile(modules, def, new_constraints, builds)?;
 
-                        // Remove the pattern from the stack
-                        stack.truncate(stack.len() - def.stack_size());
+                                // Remove the pattern from the stack
+                                stack.truncate(stack.len() - def.stack_size());
 
-                        // Execute the definition with no inputs
-                        let x =
-                            bf_instrumentor::run(&bf, &[], OptimizationLevel::O2, MAX_ITERATIONS);
+                                // Execute the definition with no inputs
+                                let x = bf_instrumentor::run(
+                                    &bf,
+                                    &[],
+                                    OptimizationLevel::O2,
+                                    MAX_ITERATIONS,
+                                );
 
-                        // Push the results onto the stack as constants
-                        match x {
-                            Ok(output) => {
-                                for c in output {
-                                    stack.push(Expression::Constant(c.0, expr.span().clone()))
+                                // Push the results onto the stack as constants
+                                match x {
+                                    Ok(output) => {
+                                        for c in output {
+                                            stack.push(Expression::Constant(
+                                                c.0,
+                                                expr.span().clone(),
+                                            ))
+                                        }
+                                    }
+                                    Err(Either::Left(e)) => {
+                                        return Err(Error::new_from_span(
+                                            pest::error::ErrorVariant::CustomError {
+                                                message: format!(
+                                                    "Error executing inline composition: {:?}",
+                                                    e
+                                                )
+                                                .bold()
+                                                .to_string(),
+                                            },
+                                            expr.span().into(),
+                                        ))
+                                    }
+                                    Err(Either::Right(e)) => {
+                                        return Err(Error::new_from_span(
+                                            pest::error::ErrorVariant::CustomError {
+                                                message: format!(
+                                                    "Error compiling inline composition: {:?}",
+                                                    e
+                                                )
+                                                .bold()
+                                                .to_string(),
+                                            },
+                                            expr.span().into(),
+                                        ))
+                                    }
                                 }
                             }
-                            Err(Either::Left(e)) => {
-                                return Err(Error::new_from_span(
-                                    pest::error::ErrorVariant::CustomError {
-                                        message: format!(
-                                            "Error executing inline composition: {:?}",
-                                            e
-                                        )
-                                        .bold()
-                                        .to_string(),
-                                    },
-                                    expr.span().into(),
-                                ))
-                            }
-                            Err(Either::Right(e)) => {
-                                return Err(Error::new_from_span(
-                                    pest::error::ErrorVariant::CustomError {
-                                        message: format!(
-                                            "Error compiling inline composition: {:?}",
-                                            e
-                                        )
-                                        .bold()
-                                        .to_string(),
-                                    },
-                                    expr.span().into(),
-                                ))
+                            DefinitionType::Composition => {
+                                // Compile the definition with replacing constraints with thier values
+                                let bf = compile(modules, def, new_constraints, builds)?;
+
+                                // Remove the pattern from the stack
+                                stack.truncate(stack.len() - def.stack_size());
+
+                                // Execute the definition with no inputs
+                                let x = bf_instrumentor::run(
+                                    &bf,
+                                    &[],
+                                    OptimizationLevel::O2,
+                                    MAX_ITERATIONS,
+                                );
+
+                                // Push the result on the stack as a bf block
+                                match x {
+                                    Ok(output) => {
+                                        let bf =
+                                            String::from_iter(output.iter().map(|x| x.0 as char));
+                                        stack.push(Expression::Brainfuck(bf, expr.span().clone()))
+                                    }
+                                    Err(Either::Left(e)) => {
+                                        return Err(Error::new_from_span(
+                                            pest::error::ErrorVariant::CustomError {
+                                                message: format!(
+                                                    "Error executing inline composition: {:?}",
+                                                    e
+                                                )
+                                                .bold()
+                                                .to_string(),
+                                            },
+                                            expr.span().into(),
+                                        ))
+                                    }
+                                    Err(Either::Right(e)) => {
+                                        return Err(Error::new_from_span(
+                                            pest::error::ErrorVariant::CustomError {
+                                                message: format!(
+                                                    "Error compiling inline composition: {:?}",
+                                                    e
+                                                )
+                                                .bold()
+                                                .to_string(),
+                                            },
+                                            expr.span().into(),
+                                        ))
+                                    }
+                                }
                             }
                         }
+                    } else {
+                        return Err(Error::new_from_span(
+                            ErrorVariant::CustomError {
+                                message: format!(
+                                    "No unused definition available for {}. Perhaps there is a circular dependency?",
+                                    name.red()
+                                )
+                                .bold()
+                                .to_string(),
+                            },
+                            (&span).into(),
+                        ));
                     }
-                    DefinitionType::Composition => {
-                        // Compile the definition with replacing constraints with thier values
-                        let bf = compile(modules, def, new_constraints, builds)?;
+                } else if let Expression::Quotation(q, s) = expr {
+                    // Compile the quotation
+                    let bf = compile_body(modules, &q, constraints, builds)?;
 
-                        // Remove the pattern from the stack
-                        stack.truncate(stack.len() - def.stack_size());
-
-                        // Execute the definition with no inputs
-                        let x =
-                            bf_instrumentor::run(&bf, &[], OptimizationLevel::O2, MAX_ITERATIONS);
-
-                        // Push the result on the stack as a bf block
-                        match x {
-                            Ok(output) => {
-                                let bf = String::from_iter(output.iter().map(|x| x.0 as char));
-                                stack.push(Expression::Brainfuck(bf, expr.span().clone()))
-                            }
-                            Err(Either::Left(e)) => {
-                                return Err(Error::new_from_span(
-                                    pest::error::ErrorVariant::CustomError {
-                                        message: format!(
-                                            "Error executing inline composition: {:?}",
-                                            e
-                                        )
-                                        .bold()
-                                        .to_string(),
-                                    },
-                                    expr.span().into(),
-                                ))
-                            }
-                            Err(Either::Right(e)) => {
-                                return Err(Error::new_from_span(
-                                    pest::error::ErrorVariant::CustomError {
-                                        message: format!(
-                                            "Error compiling inline composition: {:?}",
-                                            e
-                                        )
-                                        .bold()
-                                        .to_string(),
-                                    },
-                                    expr.span().into(),
-                                ))
-                            }
-                        }
-                    }
+                    // Push the result on the stack as a bf block
+                    stack.push(Expression::Brainfuck(bf, s.clone()))
+                } else {
+                    stack.push(expr.clone());
                 }
-            } else {
-                // Error: function not found
-                println!("{} {}", module, name);
-                panic!("Function not found");
             }
-        } else if let Expression::Quotation(q, s) = expr {
-            // Compile the quotation
-            let bf = compile_body(modules, &q, constraints, builds)?;
-
-            // Push the result on the stack as a bf block
-            stack.push(Expression::Brainfuck(bf, s.clone()))
-        } else {
-            stack.push(expr.clone());
+            Either::Right(msg) => match msg {
+                Message::Finish(id) => {
+                    builds.remove(&id);
+                }
+            },
         }
     }
 
@@ -233,6 +276,8 @@ fn compile_body<'a>(
         .map(|e| e.compiled())
         .collect::<Vec<_>>()
         .join("");
+
+    println!("{}", result);
 
     Ok(result)
 }
@@ -246,6 +291,8 @@ fn pattern_match(stack: &[Expression], pattern: &StackArgs) -> Option<HashMap<ch
     let mut matches = true;
     for arg in pattern.args.iter() {
         if let Some(expr) = expressions.next() {
+            println!("{:?} {}", arg, expr);
+
             match (expr, arg) {
                 (Expression::Constant(a, _), StackArg::Position(c, _)) => {
                     // Check if c is already constrained

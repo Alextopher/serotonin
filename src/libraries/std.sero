@@ -41,7 +41,7 @@ popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;
 # (n -- n)
 printd == dup popd;
 
-##### BASIC MATH #####
+##### ARITHMETIC #####
 
 # inc (a -- a+1)
 inc == `+`;
@@ -53,12 +53,12 @@ dec (a) ==! a dec pop;
 
 # + (a b -- a+b)
 + == `[-<+>]<`;
-+ (b) ==? '+' b dupn spop;
++ (b) ==? '+' b dupn sprint;
 + (a b) ==! a b + pop;
 
 # - (a b -- a-b)
 - == `[-<->]<`;
-- (b) ==? `-` b dupn spop;
+- (b) ==? '-' b dupn sprint;
 - (a b) ==! a b - pop;
 
 # divmod (n d -- n%d n/d)
@@ -67,7 +67,7 @@ divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
 
 # multiplies the two numbers on the top of the stack
 * == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
-* (b) ==? '\0[->' '+' b dupn '<]>[-<+>]' spop;
+* (b) ==? '\0[->' '+' b dupn '<]>[-<+>]<' sprint;
 * (a b) ==! a b * pop;
 
 ##### LOGIC #####
@@ -102,8 +102,11 @@ neq == eq not;
 # dupn (a n -- a a ... a)
 # dupn (a 0 -- )
 dupn == [dup dec swap] [drop over swap] while drop drop;
-dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spop;
-dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while `<` spop;
+dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' sprint;
+dupn (0) == drop drop;
+dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while sprint;
+dupn (a 0) == ;
+dupn (0 n) ==! n [] [dec `>.<`] while; 
 
 ##### STRINGS #####
 
@@ -135,4 +138,4 @@ slen == `[[-]>[-<+>]<+<]`;
 ##### Control Flow #####
 
 # {c}[{body}{cond}]
-while (C B) ==? C '[' spop B spop C ']<' spop; 
+while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
