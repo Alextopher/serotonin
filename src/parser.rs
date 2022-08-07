@@ -1,12 +1,19 @@
-use crate::{pest::Parser, semantic::apply_semantics, stdlib::LIBRARIES};
+use crate::{
+    bfoptimizer::optimize_bf,
+    definition::{Definition, DefinitionType, Expression, StackArg, StackArgs},
+    gen,
+    pest::Parser,
+    semantic::apply_semantics,
+};
+use colored::Colorize;
 use pest::{
     error::{Error, ErrorVariant},
     iterators::{Pair, Pairs},
     Span,
 };
 use pest_derive::Parser;
-use std::fmt::Write;
-use std::{collections::HashMap, iter};
+use std::{collections::HashMap, rc::Rc, sync::atomic::AtomicUsize};
+use std::{fmt::Write, sync::atomic::Ordering};
 
 #[derive(Parser)]
 #[grammar = "serotonin.pest"]
@@ -21,15 +28,17 @@ pub fn compile(name: &str, input: &str) -> Result<String, Vec<Error<Rule>>> {
         Err(e) => return Err(vec![e]),
     };
 
+    let id = Rc::new(AtomicUsize::new(0));
+
     println!("Pest parsing took: {}us", start.elapsed().as_micros());
     start = std::time::Instant::now();
 
-    let this = parse_module_ast(name.to_owned(), pairs)?;
+    let this = parse_module_ast(name.to_owned(), pairs, id.clone())?;
 
     println!("Parsing took: {}us", start.elapsed().as_micros());
     start = std::time::Instant::now();
 
-    let mut asts = Dependencies::resolve(&this)?;
+    let mut asts = Dependencies::resolve(&this, id)?;
     asts.insert(name, this);
     // println!(
     //     "{}",
@@ -46,279 +55,77 @@ pub fn compile(name: &str, input: &str) -> Result<String, Vec<Error<Rule>>> {
     // );
 
     println!("Checking semantics took: {}us", start.elapsed().as_micros());
-    start = std::time::Instant::now();
 
-    Ok(String::new())
+    // Try to get the main function
+    let main = match new_ast.get(name).unwrap().definitions.get("main") {
+        Some(mains) => {
+            // There can be only 1 main
+            if mains.len() > 1 {
+                Err(vec![Error::new_from_span(
+                    ErrorVariant::CustomError {
+                        message: "main function must have no pattern matches"
+                            .bold()
+                            .to_string(),
+                    },
+                    mains[1].span,
+                )])
+            } else {
+                Ok(&mains[0])
+            }
+        }
+        None => Err(vec![Error::new_from_span(
+            ErrorVariant::CustomError {
+                message: format!(
+                    "function {} not found in module {}",
+                    "main".red(),
+                    name.green()
+                )
+                .bold()
+                .to_string(),
+            },
+            Span::new(input, 0, 0).unwrap(),
+        )]),
+    }?;
+
+    let c = match gen::gen_main(&new_ast, main) {
+        Ok(c) => Ok(c),
+        Err(e) => Err(vec![e]),
+    }?;
+
+    Ok(optimize_bf(c))
 }
+
+use include_dir::{include_dir, Dir};
+
+pub static LIBRARIES: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/src/libraries");
 
 pub(crate) struct Dependencies<'a> {
     building: Vec<&'a str>,
     asts: HashMap<&'a str, ModuleAst<'a>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum StackArg {
-    // Lowercase letter
-    Position(char, u8),
-    // Capital letter
-    Qoutation(char, u8),
-    // Number
-    Byte(u8),
-    // @
-    IgnoredConstant,
-    // _
-    IgnoredQoutation,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct StackArgs<'a> {
-    pub(crate) args: Vec<StackArg>,
-    pub(crate) pair: Pair<'a, Rule>,
-}
-
-// Eq and Hash only consider args and not the pair
-impl<'a> PartialEq for StackArgs<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.args == other.args
-    }
-}
-
-impl<'a> Eq for StackArgs<'a> {}
-
-impl<'a> std::hash::Hash for StackArgs<'a> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.args.hash(state);
-    }
-}
-
-impl<'a> std::fmt::Display for StackArgs<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(")?;
-        for arg in &self.args {
-            match arg {
-                StackArg::Position(_, n) => {
-                    // 0 -> a, 1 -> b, ...
-                    write!(f, "{} ", (b'a' + *n) as char)?;
-                }
-                StackArg::Byte(n) => write!(f, "{} ", n)?,
-                StackArg::IgnoredConstant => write!(f, "@ ")?,
-                StackArg::Qoutation(_, n) => {
-                    // 0 -> A, 1 -> B, ...
-                    write!(f, "{} ", (b'A' + *n) as char)?;
-                }
-                StackArg::IgnoredQoutation => write!(f, "_ ")?,
-            }
-        }
-        write!(f, "\u{8})")?;
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum DefinitionType {
-    // Functions compile to normal BF code
-    // Results should be cached
-    Function,
-    // Inline Compositions a simple pattern matching replace.
-    // ```
-    // swap (a b) == b a;
-    // ```
-    // means 10 5 swap is replaced with 5 10
-    InlineComposition,
-    // Constant Compositions pattern match and replace a program with the results of another program
-    // ```
-    // * (a b) ==! a b * pop;
-    // ```
-    // 10 20 * is replaced by 200
-    ConstantComposition,
-    // Compositions are used to build control flow and optimize some functions where applicable
-    // For example: read 10 + compiles to `,>++++++++++[-<+>]<` when `,++++++++++` would suffice
-    // To create these functions we write programs that _output_ brainfuck as their result
-    // ```
-    // + (b) ==? '+' b dupn spop;
-    // ```
-    // 10 + is replaced by `++++++++++`
-    Composition,
-}
-
-#[derive(Debug)]
-pub(crate) struct Definition<'a> {
-    pub(crate) typ: DefinitionType,
-    pub(crate) name: String,
-    pub(crate) stack: Option<StackArgs<'a>>,
-    pub(crate) body: Vec<Expression<'a>>,
-    pub(crate) pair: Pair<'a, Rule>,
-}
-
-impl Definition<'_> {
-    pub(crate) fn stack_as_str(&self) -> String {
-        match &self.stack {
-            Some(s) => s.to_string(),
-            None => String::new(),
-        }
-    }
-}
-
-impl std::fmt::Display for Definition<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let body = self
-            .body
-            .iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        match self.typ {
-            DefinitionType::Function => {
-                // No stack args
-                write!(f, "{} == {}", self.name, body)?;
-            }
-            DefinitionType::InlineComposition => {
-                write!(f, "{} {} == {}", self.name, self.stack_as_str(), body)?
-            }
-            DefinitionType::ConstantComposition => {
-                write!(f, "{} {} ==! {}", self.name, self.stack_as_str(), body)?
-            }
-            DefinitionType::Composition => {
-                write!(f, "{} {} ==? {}", self.name, self.stack_as_str(), body)?
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum Expression<'a> {
-    Constant(u8, Span<'a>),
-    Brainfuck(String, Span<'a>),
-    Function {
-        module: String,
-        name: String,
-        span: Span<'a>,
-    },
-    Quotation(Vec<Expression<'a>>, Span<'a>),
-}
-
-impl<'a> TryFrom<Pair<'a, Rule>> for Expression<'a> {
-    type Error = Error<Rule>;
-
-    fn try_from(pair: Pair<'a, Rule>) -> Result<Self, Self::Error> {
-        match pair.as_rule() {
-            Rule::atomic => {
-                // Either "module.function" or "function"
-                if let Some(dot) = pair.as_str().find('.') {
-                    let (module, name) = pair.as_str().split_at(dot);
-
-                    Ok(Expression::Function {
-                        module: String::from(module),
-                        name: String::from(&name[1..]),
-                        span: pair.as_span(),
-                    })
-                } else {
-                    Ok(Expression::Function {
-                        module: String::new(),
-                        name: pair.as_str().to_string(),
-                        span: pair.as_span(),
-                    })
-                }
-            }
-            Rule::hex_integer => match u8::from_str_radix(&pair.as_str()[2..], 16) {
-                Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
-                Err(err) => Err(Error::new_from_span(
-                    ErrorVariant::CustomError {
-                        message: format!("{}", err),
-                    },
-                    pair.as_span(),
-                )),
-            },
-            Rule::integer => match pair.as_str().parse::<u8>() {
-                Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
-                Err(err) => {
-                    return Err(Error::new_from_span(
-                        ErrorVariant::CustomError {
-                            message: format!("{}", err),
-                        },
-                        pair.as_span(),
-                    ))
-                }
-            },
-            Rule::string => {
-                let mut constants =
-                    vec![Expression::Constant(0, pair.as_span().get(0..1).unwrap())];
-                constants.extend(pair.clone().into_inner().map(constant_from_char));
-
-                Ok(Expression::Quotation(constants, pair.clone().as_span()))
-            }
-            Rule::raw_string => Ok(Expression::Quotation(
-                pair.clone().into_inner().map(constant_from_char).collect(),
-                pair.as_span(),
-            )),
-            Rule::brainfuck => Ok(Expression::Brainfuck(
-                pair.as_str().to_string(),
-                pair.as_span(),
-            )),
-            Rule::term => Ok(Expression::Quotation(
-                parse_term_ast(pair.clone())?,
-                pair.as_span(),
-            )),
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl std::fmt::Display for Expression<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Do not print the span
-        match self {
-            Expression::Constant(c, _) => {
-                write!(f, "{}", c)?;
-            }
-            Expression::Quotation(expressions, _) => {
-                let body = expressions
-                    .iter()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                write!(f, "[{}]", body)?;
-            }
-            Expression::Brainfuck(bf, _) => {
-                write!(f, "{}", bf)?;
-            }
-            Expression::Function {
-                module,
-                name,
-                span: _,
-            } => {
-                if module.is_empty() {
-                    write!(f, "{}", name)?;
-                } else {
-                    write!(f, "{}.{}", module, name)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
-
 impl<'a> Dependencies<'a> {
-    fn resolve(main: &ModuleAst<'a>) -> Result<HashMap<&'a str, ModuleAst<'a>>, Vec<Error<Rule>>> {
+    fn resolve(
+        main: &ModuleAst<'a>,
+        id: Rc<AtomicUsize>,
+    ) -> Result<HashMap<&'a str, ModuleAst<'a>>, Vec<Error<Rule>>> {
         let mut dep = Dependencies {
             building: Vec::new(),
             asts: HashMap::new(),
         };
 
         for import in main.imports.clone() {
-            if let Err(e) = dep._resolve(import) {
-                return Err(e);
-            }
+            dep._resolve(import, id.clone())?
         }
 
         Ok(dep.asts)
     }
 
-    fn _resolve(&mut self, module: Pair<'a, Rule>) -> Result<(), Vec<Error<Rule>>> {
+    fn _resolve(
+        &mut self,
+        module: Pair<'a, Rule>,
+        id: Rc<AtomicUsize>,
+    ) -> Result<(), Vec<Error<Rule>>> {
         assert_eq!(module.as_rule(), Rule::atomic);
 
         if self.building.contains(&module.as_str()) {
@@ -365,10 +172,10 @@ impl<'a> Dependencies<'a> {
                     }
                 };
 
-                let ast = parse_module_ast(module.as_str().to_string(), pairs)?;
+                let ast = parse_module_ast(module.as_str().to_string(), pairs, id.clone())?;
 
                 for import in ast.imports.clone() {
-                    self._resolve(import)?;
+                    self._resolve(import, id.clone())?;
                 }
 
                 self.asts.insert(module.as_str(), ast);
@@ -420,7 +227,11 @@ pub(crate) struct ModuleAst<'a> {
     pub(crate) definitions: HashMap<String, Vec<Definition<'a>>>,
 }
 
-fn parse_module_ast(name: String, pairs: Pairs<Rule>) -> Result<ModuleAst, Vec<Error<Rule>>> {
+fn parse_module_ast<'a>(
+    name: String,
+    pairs: Pairs<'a, Rule>,
+    id: Rc<AtomicUsize>,
+) -> Result<ModuleAst<'a>, Vec<Error<Rule>>> {
     // add input str to illicit layer
     let mut imports = Vec::new();
     let mut definitions: HashMap<String, Vec<Definition>> = HashMap::new();
@@ -436,7 +247,7 @@ fn parse_module_ast(name: String, pairs: Pairs<Rule>) -> Result<ModuleAst, Vec<E
             }
             Rule::definition_sequence => {
                 for pair in pair.into_inner() {
-                    let def = parse_definition_ast(pair);
+                    let def = parse_definition_ast(pair, id.clone());
 
                     match def {
                         Ok(def) => {
@@ -462,7 +273,7 @@ fn parse_module_ast(name: String, pairs: Pairs<Rule>) -> Result<ModuleAst, Vec<E
     })
 }
 
-fn parse_definition_ast(pair: Pair<Rule>) -> Result<Definition, Error<Rule>> {
+fn parse_definition_ast(pair: Pair<Rule>, id: Rc<AtomicUsize>) -> Result<Definition, Error<Rule>> {
     assert_eq!(pair.as_rule(), Rule::definition);
     let mut pairs = pair.clone().into_inner();
 
@@ -512,13 +323,14 @@ fn parse_definition_ast(pair: Pair<Rule>) -> Result<Definition, Error<Rule>> {
                 let mut positions = HashMap::new();
                 let mut position_count = 0;
 
-                for pair in pair.into_inner() {
+                for pair in pair.into_inner().rev() {
                     match pair.as_rule() {
                         Rule::stack_constant => {
                             let letter = pair.as_str().chars().next().unwrap();
 
+                            // Create qoutation constraint
                             if let Some(pos) = positions.get(&letter) {
-                                stack.push(StackArg::Position(letter, *pos))
+                                stack.push(StackArg::Position(letter, *pos));
                             } else {
                                 positions.insert(letter, position_count);
                                 stack.push(StackArg::Position(letter, position_count));
@@ -530,11 +342,13 @@ fn parse_definition_ast(pair: Pair<Rule>) -> Result<Definition, Error<Rule>> {
                             let letter = pair.as_str().chars().next().unwrap();
 
                             if let Some(pos) = positions.get(&letter) {
-                                stack.push(StackArg::Position(letter, *pos))
+                                stack.push(StackArg::Qoutation(letter, *pos))
                             } else {
                                 positions.insert(letter, position_count);
-                                stack.push(StackArg::Position(letter, position_count));
+                                stack.push(StackArg::Qoutation(letter, position_count));
                             }
+
+                            position_count += 1;
                         }
                         Rule::stack_byte => {
                             stack.push(StackArg::Byte(pair.as_str().parse::<u8>().unwrap()))
@@ -552,29 +366,90 @@ fn parse_definition_ast(pair: Pair<Rule>) -> Result<Definition, Error<Rule>> {
         }
     }
 
-    let stack = match stack_pair {
-        Some(pair) => Some(StackArgs { args: stack, pair }),
-        None => None,
-    };
+    let stack = stack_pair.map(|pair| StackArgs {
+        args: stack,
+        span: pair.as_span(),
+    });
 
     Ok(Definition {
-        pair,
         name,
         stack,
         body: body.unwrap(),
         typ: typ.unwrap(),
+        unique_id: id.fetch_add(1, Ordering::Relaxed),
+        span: pair.as_span(),
     })
 }
 
 fn parse_term_ast(pair: Pair<Rule>) -> Result<Vec<Expression>, Error<Rule>> {
     assert_eq!(pair.as_rule(), Rule::term);
 
-    pair.into_inner()
-        .map(|pair| Expression::try_from(pair))
-        .collect()
+    pair.into_inner().map(parse_factor_ast).collect()
 }
 
-fn constant_from_char(pair: Pair<Rule>) -> Expression {
+fn parse_factor_ast(pair: Pair<Rule>) -> Result<Expression, Error<Rule>> {
+    match pair.as_rule() {
+        Rule::atomic => {
+            // Either "module.function" or "function"
+            if let Some(dot) = pair.as_str().find('.') {
+                let (module, name) = pair.as_str().split_at(dot);
+
+                Ok(Expression::Function(
+                    String::from(module),
+                    String::from(&name[1..]),
+                    pair.as_span(),
+                ))
+            } else {
+                Ok(Expression::Function(
+                    String::new(),
+                    pair.as_str().to_string(),
+                    pair.as_span(),
+                ))
+            }
+        }
+        Rule::hex_integer => match u8::from_str_radix(&pair.as_str()[2..], 16) {
+            Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
+            Err(err) => Err(Error::new_from_span(
+                ErrorVariant::CustomError {
+                    message: format!("{}", err),
+                },
+                pair.as_span(),
+            )),
+        },
+        Rule::integer => match pair.as_str().parse::<u8>() {
+            Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
+            Err(err) => {
+                return Err(Error::new_from_span(
+                    ErrorVariant::CustomError {
+                        message: format!("{}", err),
+                    },
+                    pair.as_span(),
+                ))
+            }
+        },
+        Rule::string => {
+            let mut constants = vec![Expression::Constant(0, pair.as_span().get(0..1).unwrap())];
+            constants.extend(pair.clone().into_inner().map(constant_from_char));
+
+            Ok(Expression::Quotation(constants, pair.clone().as_span()))
+        }
+        Rule::raw_string => Ok(Expression::Quotation(
+            pair.clone().into_inner().map(constant_from_char).collect(),
+            pair.as_span(),
+        )),
+        Rule::brainfuck => Ok(Expression::Brainfuck(
+            pair.as_str().to_string(),
+            pair.as_span(),
+        )),
+        Rule::term => Ok(Expression::Quotation(
+            parse_term_ast(pair.clone())?,
+            pair.as_span(),
+        )),
+        _ => unreachable!(),
+    }
+}
+
+pub(crate) fn constant_from_char(pair: Pair<Rule>) -> Expression {
     let b = match pair.as_rule() {
         Rule::char => pair.as_str().bytes().next().unwrap(),
         Rule::raw_char => pair.as_str().bytes().next().unwrap(),

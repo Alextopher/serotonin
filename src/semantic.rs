@@ -1,12 +1,14 @@
 use colored::Color;
 use colored::Colorize;
 use pest::error::{Error, ErrorVariant};
-use pest::iterators::Pair;
 use pest::Span;
 use std::collections::HashMap;
 
-use crate::parser::StackArg;
-use crate::parser::{Definition, Expression, ModuleAst, Rule, StackArgs};
+use crate::definition::Definition;
+use crate::definition::Expression;
+use crate::definition::StackArg;
+use crate::definition::StackArgs;
+use crate::parser::{ModuleAst, Rule};
 
 // Preform semantic analysis on a Module.
 // - The same name and stack argument can not be used twice.
@@ -14,7 +16,7 @@ use crate::parser::{Definition, Expression, ModuleAst, Rule, StackArgs};
 // - Where applicable replace function calls with fully qualified names
 pub(crate) fn apply_semantics<'a>(
     asts: &'a mut HashMap<&str, ModuleAst>,
-) -> Result<HashMap<&'a str, ModuleAst<'a>>, Vec<Error<Rule>>> {
+) -> Result<HashMap<String, ModuleAst<'a>>, Vec<Error<Rule>>> {
     let mut errors: Vec<Error<Rule>> = Vec::new();
 
     // The same name and stack arguments can not be duplicated.
@@ -45,7 +47,7 @@ pub(crate) fn apply_semantics<'a>(
                                 .bold()
                                 .to_string(),
                             },
-                            def.pair.as_span(),
+                            def.span,
                         )),
                         None => {
                             stack_errors.insert(
@@ -61,7 +63,7 @@ pub(crate) fn apply_semantics<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    def.pair.as_span(),
+                                    def.span,
                                 )],
                             );
                             originals.insert(
@@ -76,7 +78,7 @@ pub(crate) fn apply_semantics<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    original.pair.as_span(),
+                                    original.span,
                                 ),
                             );
                         }
@@ -104,7 +106,7 @@ pub(crate) fn apply_semantics<'a>(
         });
     }
 
-    let mut new_asts: HashMap<&'a str, ModuleAst<'a>> = HashMap::new();
+    let mut new_asts: HashMap<String, ModuleAst<'a>> = HashMap::new();
 
     // Verify that every function used in the module is defined somewhere in scope and replace function calls with fully qualified names.
     for (_, ast) in asts.iter() {
@@ -137,15 +139,16 @@ pub(crate) fn apply_semantics<'a>(
                     name: def.name.clone(),
                     stack: def.stack.clone(),
                     body,
-                    pair: def.pair.clone(),
+                    unique_id: def.unique_id,
+                    span: def.span,
                 })
             }
 
-            new_defs.insert(name.to_owned(), sub_defs);
+            new_defs.insert(name.clone(), sub_defs);
         }
 
         new_asts.insert(
-            ast.name.as_str(),
+            ast.name.clone(),
             ModuleAst {
                 name: ast.name.clone(),
                 imports: ast.imports.clone(),
@@ -175,7 +178,7 @@ fn qualify_expression<'a>(
             let mut errors = Vec::new();
             let mut quotation = Vec::new();
 
-            for e in q.into_iter() {
+            for e in q.iter() {
                 match qualify_expression(scopes, stack, e) {
                     Ok(e) => quotation.push(e),
                     Err(e) => errors.extend(e),
@@ -183,12 +186,12 @@ fn qualify_expression<'a>(
             }
 
             if errors.is_empty() {
-                Ok(Expression::Quotation(quotation, p.clone()))
+                Ok(Expression::Quotation(quotation, *p))
             } else {
                 Err(errors)
             }
         }
-        Expression::Function { module, name, span } => {
+        Expression::Function(module, name, span) => {
             // Check if module is "" and name is in stack
             if module.is_empty() && stack.is_some() {
                 let stack = stack.as_ref().unwrap();
@@ -199,15 +202,22 @@ fn qualify_expression<'a>(
                             return Ok(e.clone());
                         }
                     }
+
+                    if let StackArg::Qoutation(c, _) = arg {
+                        if c.to_string() == *name {
+                            return Ok(e.clone());
+                        }
+                    }
                 }
             }
 
-            match qualify_string(scopes, &module, &name, span) {
-                Ok((module, name)) => Ok(Expression::Function {
-                    module: module.to_string(),
-                    name: name.to_string(),
-                    span: span.clone(),
-                }),
+            // Otherwise find the function in the scope
+            match qualify_string(scopes, module, name, span) {
+                Ok((module, name)) => Ok(Expression::Function(
+                    module.to_owned(),
+                    name.to_owned(),
+                    *span,
+                )),
                 Err(e) => Err(vec![e]),
             }
         }
@@ -215,7 +225,7 @@ fn qualify_expression<'a>(
 }
 
 fn qualify_string<'a>(
-    scopes: &Vec<&'a ModuleAst>,
+    scopes: &[&'a ModuleAst],
     module_name: &'a str,
     name: &'a str,
     span: &'a Span<'a>,
@@ -226,7 +236,7 @@ fn qualify_string<'a>(
     // verify the module is in scope
     // verify that the function is defined
     // if the function is defined then we ensure it is accessible
-    if module_name != "" {
+    if !module_name.is_empty() {
         if let Some(module) = scopes.iter().find(|m| m.name == module_name) {
             if module.definitions.contains_key(name) {
                 // If the function starts with '_' then it must be in "this" module
@@ -241,7 +251,7 @@ fn qualify_string<'a>(
                             .bold()
                             .to_string(),
                         },
-                        span.clone(),
+                        *span,
                     ))
                 } else {
                     Ok((module_name, name))
@@ -257,7 +267,7 @@ fn qualify_string<'a>(
                         .bold()
                         .to_string(),
                     },
-                    span.clone(),
+                    *span,
                 ))
             }
         } else {
@@ -267,13 +277,13 @@ fn qualify_string<'a>(
                         .bold()
                         .to_string(),
                 },
-                span.clone(),
+                *span,
             ))
         }
     } else {
         // Check each scope in reverse order to find the first definition that matches the name
         for scope in scopes.iter().rev() {
-            if let Some(_) = scope.definitions.get(name) {
+            if scope.definitions.contains_key(name) {
                 return Ok((&scope.name, name));
             }
         }
@@ -285,7 +295,7 @@ fn qualify_string<'a>(
                     .bold()
                     .to_string(),
             },
-            span.clone(),
+            *span,
         ))
     }
 }

@@ -2,11 +2,12 @@ extern crate clap;
 extern crate pest;
 extern crate pest_derive;
 
-pub mod bfoptimizer;
+pub(crate) mod bfoptimizer;
 pub mod config;
+pub(crate) mod definition;
+pub(crate) mod gen;
 pub mod parser;
-pub mod semantic;
-pub mod stdlib;
+pub(crate) mod semantic;
 // pub mod typ;
 
 #[cfg(test)]

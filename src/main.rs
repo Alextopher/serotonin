@@ -34,7 +34,7 @@ fn main() {
     }
     // File name must not contain dots
     if let Some(name) = path.file_stem() {
-        if name.to_string_lossy().contains(".") {
+        if name.to_string_lossy().contains('.') {
             eprintln!("Error: File name must not contain dots");
             exit(1);
         }
