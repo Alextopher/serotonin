@@ -67,7 +67,7 @@ divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
 
 # multiplies the two numbers on the top of the stack
 * == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
-* (b) ==? '\0[->' '+' b dupn '<]>[-<+>]' spopr;
+* (b) ==? '\0[->' '+' b dupn '<]>[-<+>]' spop;
 * (a b) ==! a b * pop;
 
 ##### LOGIC #####
@@ -102,8 +102,8 @@ neq == eq not;
 # dupn (a n -- a a ... a)
 # dupn (a 0 -- )
 dupn == [dup dec swap] [drop over swap] while drop drop;
-dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spopr;
-dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while `<` spopr;
+dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spop;
+dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while `<` spop;
 
 ##### STRINGS #####
 
@@ -135,4 +135,4 @@ slen == `[[-]>[-<+>]<+<]`;
 ##### Control Flow #####
 
 # {c}[{body}{cond}]
-while (C B) ==? C spopr '[' pop B spopr C spopr ']<' spopr; 
+while (C B) ==? C '[' spop B spop C ']<' spop; 

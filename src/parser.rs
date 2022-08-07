@@ -1,16 +1,12 @@
 use crate::{
-    bfoptimizer::optimize_bf,
     definition::{Definition, DefinitionType, Expression, StackArg, StackArgs},
-    gen,
     pest::Parser,
-    semantic::apply_semantics,
+    LIBRARIES,
 };
-use colored::Colorize;
 use either::Either;
 use pest::{
     error::{Error, ErrorVariant},
     iterators::{Pair, Pairs},
-    Span,
 };
 use pest_derive::Parser;
 use std::{collections::HashMap, rc::Rc, sync::atomic::AtomicUsize};
@@ -19,87 +15,7 @@ use Either::{Left, Right};
 
 #[derive(Parser)]
 #[grammar = "serotonin.pest"]
-struct PestParser;
-
-pub fn compile(name: &str, input: &str) -> Result<String, Vec<Error<Rule>>> {
-    // Time sections
-    let mut start = std::time::Instant::now();
-
-    let pairs = match PestParser::parse(Rule::module, input) {
-        Ok(pairs) => pairs,
-        Err(e) => return Err(vec![e]),
-    };
-
-    let id = Rc::new(AtomicUsize::new(0));
-
-    println!("Pest parsing took: {}us", start.elapsed().as_micros());
-    start = std::time::Instant::now();
-
-    let this = parse_module_ast(name.to_owned(), pairs, id.clone())?;
-
-    println!("Parsing took: {}us", start.elapsed().as_micros());
-    start = std::time::Instant::now();
-
-    let mut asts = Dependencies::resolve(&this, id)?;
-    asts.insert(name, this);
-    // println!(
-    //     "{}",
-    //     asts.get(name).unwrap().definitions.get("main").unwrap()[0]
-    // );
-
-    println!("Parsing imports took: {}us", start.elapsed().as_micros());
-    start = std::time::Instant::now();
-
-    let new_ast = apply_semantics(&mut asts)?;
-    // println!(
-    //     "{}",
-    //     new_ast.get(name).unwrap().definitions.get("main").unwrap()[0]
-    // );
-
-    println!("Checking semantics took: {}us", start.elapsed().as_micros());
-
-    // Try to get the main function
-    let main = match new_ast.get(name).unwrap().definitions.get("main") {
-        Some(mains) => {
-            // There can be only 1 main
-            if mains.len() > 1 {
-                Err(vec![Error::new_from_span(
-                    ErrorVariant::CustomError {
-                        message: "main function must have no pattern matches"
-                            .bold()
-                            .to_string(),
-                    },
-                    (&mains[1].span).into(),
-                )])
-            } else {
-                Ok(&mains[0])
-            }
-        }
-        None => Err(vec![Error::new_from_span(
-            ErrorVariant::CustomError {
-                message: format!(
-                    "function {} not found in module {}",
-                    "main".red(),
-                    name.green()
-                )
-                .bold()
-                .to_string(),
-            },
-            Span::new(input, 0, 0).unwrap(),
-        )]),
-    }?;
-
-    let c = match gen::gen_main(&new_ast, main) {
-        Ok(c) => Ok(c),
-        Err(e) => Err(vec![e]),
-    }?;
-
-    Ok(optimize_bf(c))
-}
-
-use include_dir::{include_dir, Dir};
-
-pub static LIBRARIES: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/src/libraries");
+pub(crate) struct PestParser;
 
 pub(crate) struct Dependencies<'a> {
     building: Vec<&'a str>,
@@ -107,7 +23,7 @@ pub(crate) struct Dependencies<'a> {
 }
 
 impl<'a> Dependencies<'a> {
-    fn resolve(
+    pub(crate) fn resolve(
         main: &ModuleAst<'a>,
         id: Rc<AtomicUsize>,
     ) -> Result<HashMap<&'a str, ModuleAst<'a>>, Vec<Error<Rule>>> {
@@ -229,7 +145,7 @@ pub(crate) struct ModuleAst<'a> {
     pub(crate) definitions: HashMap<String, Vec<Definition>>,
 }
 
-fn parse_module_ast(
+pub(crate) fn parse_module_ast(
     name: String,
     pairs: Pairs<'_, Rule>,
     id: Rc<AtomicUsize>,
@@ -368,7 +284,7 @@ fn parse_definition_ast(pair: Pair<Rule>, id: Rc<AtomicUsize>) -> Result<Definit
         }
     }
 
-    let stack = stack_pair.map(|pair| StackArgs { args: stack });
+    let stack = stack_pair.map(|_| StackArgs { args: stack });
 
     Ok(Definition {
         name,

@@ -1,4 +1,4 @@
-use serotonin::parser::compile;
+use serotonin::compile;
 use std::{io::Read, process::exit};
 
 fn main() {

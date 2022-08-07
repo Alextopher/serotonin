@@ -1,7 +1,6 @@
 use colored::Color;
 use colored::Colorize;
 use pest::error::{Error, ErrorVariant};
-use pest::Span;
 use std::collections::HashMap;
 
 use crate::definition::Definition;

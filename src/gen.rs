@@ -37,23 +37,10 @@ pub(crate) fn compile<'a>(
     constraints: HashMap<char, Expression>,
     builds: &mut HashSet<usize>,
 ) -> Result<String, Error<Rule>> {
-    println!(
-        "compiling {} {} -- {}",
-        def.name,
-        def.stack_as_str(),
-        def.body
-            .iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
-
     // Add function to the build list
     builds.insert(def.unique_id);
 
     let result = compile_body(modules, &def.body, &constraints, builds)?;
-    println!("finished {} {}", def.name, def.stack_as_str());
-    println!("became: {:?}", result);
 
     builds.remove(&def.unique_id);
 
@@ -66,18 +53,14 @@ fn compile_body<'a>(
     constraints: &HashMap<char, Expression>,
     builds: &mut HashSet<usize>,
 ) -> Result<String, Error<Rule>> {
-    let body = apply_constraints(&constraints, &body);
+    let body = apply_constraints(constraints, body);
 
     let mut work: Vec<Expression> = body.into_iter().rev().collect();
     let mut stack: Vec<Expression> = Vec::new();
 
-    println!("constraints: {:?}", constraints);
-
     // add expression from the body onto the stack
     while let Some(expr) = work.pop() {
         if let Expression::Function(module, name, _) = expr.clone() {
-            println!("found function {} {}", module, name);
-
             // Look up all definitions for the function in modules
             let definitions = modules
                 .get(&module)
@@ -96,24 +79,20 @@ fn compile_body<'a>(
 
                 // Check if we match the pattern
                 match &def.stack {
-                    Some(pattern) => {
-                        println!("{} {}", def.name, pattern);
-                        match pattern_match(&stack, pattern) {
-                            Some(c) => {
-                                new_constraints = Some(c);
-                                function = Some(def);
-                                break;
-                            }
-                            None => continue,
+                    Some(pattern) => match pattern_match(&stack, pattern) {
+                        Some(c) => {
+                            new_constraints = Some(c);
+                            function = Some(def);
+                            break;
                         }
-                    }
+                        None => continue,
+                    },
                     None => {
                         function = Some(def);
                         break;
                     }
                 }
             }
-            println!("new_constraints: {:?}", new_constraints);
 
             let new_constraints = match new_constraints {
                 Some(c) => c,
@@ -239,39 +218,14 @@ fn compile_body<'a>(
                 panic!("Function not found");
             }
         } else if let Expression::Quotation(q, s) = expr {
-            println!(
-                "Compiling quotation: [{}]",
-                q.iter()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            );
-
             // Compile the quotation
             let bf = compile_body(modules, &q, constraints, builds)?;
-
-            println!(
-                "Quotation compiled: [{}]",
-                q.iter()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            );
 
             // Push the result on the stack as a bf block
             stack.push(Expression::Brainfuck(bf, s.clone()))
         } else {
             stack.push(expr.clone());
         }
-
-        println!(
-            "{}",
-            stack
-                .iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<_>>()
-                .join(" ")
-        );
     }
 
     let result = stack
@@ -396,7 +350,7 @@ fn apply_constraints(
             Expression::Function(module, name, _) => {
                 // If the expression is a stack constraint then we replace it with the correct expression
                 if module.is_empty() && name.len() == 1 && let Some(constraint) = constraints.get(&name.chars().next().unwrap()) {
-                    expr = &constraint;
+                    expr = constraint;
                 }
 
                 result.push(expr.clone());
