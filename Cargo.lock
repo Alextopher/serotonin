@@ -274,6 +274,8 @@ checksum = "648001efe5d5c0102d8cea768e348da85d90af8ba91f0bea908f157951493cd4"
 [[package]]
 name = "pest"
 version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69486e2b8c2d2aeb9762db7b4e00b0331156393555cff467f4163ff06821eef8"
 dependencies = [
  "thiserror",
  "ucd-trie",
@@ -282,8 +284,7 @@ dependencies = [
 [[package]]
 name = "pest"
 version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69486e2b8c2d2aeb9762db7b4e00b0331156393555cff467f4163ff06821eef8"
+source = "git+https://github.com/pest-parser/pest.git?branch=master#9a93978d3a84fe113b8f5a7a5bc9ea475132dd08"
 dependencies = [
  "thiserror",
  "ucd-trie",
@@ -409,14 +410,15 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "serotonin"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bf_instrumentor",
  "clap",
  "colored",
  "either",
  "include_dir",
- "pest 2.2.1",
+ "lazy_static",
+ "pest 2.2.1 (git+https://github.com/pest-parser/pest.git?branch=master)",
  "pest_derive",
  "rand",
  "rayon",

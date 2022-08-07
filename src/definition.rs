@@ -1,16 +1,64 @@
-use pest::Span;
+use std::{slice::from_raw_parts, sync::Arc};
+
+#[derive(Clone, Ord, Hash, Eq, PartialOrd, PartialEq)]
+pub struct Span {
+    pub(crate) data: Arc<String>,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+}
+
+impl<'a, 'b: 'a> From<&'b Span> for pest::Span<'a> {
+    fn from(other: &'b Span) -> pest::Span<'a> {
+        pest::Span::new(&other.data, other.start, other.end).unwrap()
+    }
+}
+
+impl<'a> From<pest::Span<'a>> for Span {
+    fn from(other: pest::Span<'a>) -> Span {
+        // SAFETY:
+        // In pest::Span the `input` field is hidden away in a private field and this is fighting to get it out.
+        // `ptr` is valid because pest::Span ensures that `input[start]` is within the bounds of `input`
+        // `s` is good because we know `ptr` was created from `input` which was a valid &str
+        let ptr = unsafe { other.as_str().as_ptr().byte_sub(other.start()) };
+        let s = unsafe { std::str::from_utf8_unchecked(from_raw_parts(ptr, other.end() + 1)) };
+
+        Span {
+            data: Arc::new(s.to_string()),
+            start: other.start(),
+            end: other.end(),
+        }
+    }
+}
+
+impl std::fmt::Display for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", &self.data[self.start..self.end])
+    }
+}
+
+impl std::fmt::Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let indexed = &self.data[self.start..self.end];
+
+        f.debug_struct("Span")
+            .field("data", &indexed)
+            .field("start", &self.start)
+            .field("end", &self.end)
+            .finish()
+    }
+}
 
 #[derive(Debug)]
-pub(crate) struct Definition<'a> {
+pub(crate) struct Definition {
     pub(crate) typ: DefinitionType,
     pub(crate) name: String,
-    pub(crate) stack: Option<StackArgs<'a>>,
-    pub(crate) body: Vec<Expression<'a>>,
-    pub(crate) span: Span<'a>,
+    pub(crate) stack: Option<StackArgs>,
+    pub(crate) body: Vec<Expression>,
+    pub(crate) span: Span,
     pub(crate) unique_id: usize,
 }
 
-impl Definition<'_> {
+impl Definition {
     pub(crate) fn stack_as_str(&self) -> String {
         match &self.stack {
             Some(s) => s.to_string(),
@@ -26,7 +74,7 @@ impl Definition<'_> {
     }
 }
 
-impl std::fmt::Display for Definition<'_> {
+impl std::fmt::Display for Definition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let body = self
             .body
@@ -96,28 +144,12 @@ pub(crate) enum StackArg {
     IgnoredQoutation,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct StackArgs<'a> {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct StackArgs {
     pub(crate) args: Vec<StackArg>,
-    pub(crate) span: Span<'a>,
 }
 
-// Eq and Hash only consider args and not the pair
-impl<'a> PartialEq for StackArgs<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.args == other.args
-    }
-}
-
-impl<'a> Eq for StackArgs<'a> {}
-
-impl<'a> std::hash::Hash for StackArgs<'a> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.args.hash(state);
-    }
-}
-
-impl<'a> std::fmt::Display for StackArgs<'a> {
+impl std::fmt::Display for StackArgs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
         for arg in &self.args {
@@ -141,14 +173,14 @@ impl<'a> std::fmt::Display for StackArgs<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum Expression<'a> {
-    Constant(u8, Span<'a>),
-    Brainfuck(String, Span<'a>),
-    Function(String, String, Span<'a>),
-    Quotation(Vec<Expression<'a>>, Span<'a>),
+pub(crate) enum Expression {
+    Constant(u8, Span),
+    Brainfuck(String, Span),
+    Function(String, String, Span),
+    Quotation(Vec<Expression>, Span),
 }
 
-impl std::fmt::Display for Expression<'_> {
+impl std::fmt::Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Do not print the span
         match self {
@@ -179,13 +211,13 @@ impl std::fmt::Display for Expression<'_> {
     }
 }
 
-impl<'a> Expression<'a> {
-    pub(crate) fn span(&'a self) -> Span<'a> {
+impl Expression {
+    pub(crate) fn span(&self) -> &Span {
         match self {
-            Expression::Constant(_, span) => span.clone(),
-            Expression::Quotation(_, span) => span.clone(),
-            Expression::Brainfuck(_, span) => span.clone(),
-            Expression::Function(_, _, span) => span.clone(),
+            Expression::Constant(_, span) => span,
+            Expression::Quotation(_, span) => span,
+            Expression::Brainfuck(_, span) => span,
+            Expression::Function(_, _, span) => span,
         }
     }
 

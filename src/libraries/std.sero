@@ -102,15 +102,10 @@ neq == eq not;
 # dupn (a n -- a a ... a)
 # dupn (a 0 -- )
 dupn == [dup dec swap] [drop over swap] while drop drop;
-dupn (n) ==? '\x00[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spopr;
-dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while spop;
+dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' spopr;
+dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while `<` spopr;
 
 ##### STRINGS #####
-
-# spop (s -- )
-# string pop
-# pops a null terminated string
-spop == `[.[-]<]`;
 
 # sdrop (s -- )
 # string drop
@@ -120,35 +115,24 @@ sdrop == `[[-]<]`;
 # sprint (s -- s)
 # string print
 # prints a null terminated string
-sprint == `[.<]>[>]<`;
+sprint == `[<]>[.>]<`;
 
-# spopr (s -- )
-# string pop reverse
-# pops a null terminated string in reverse
-spopr == `[<]>[.>]<` sdrop;
-
-# sprintr (s -- s)
-# string pop reverse
-# prints a null terminated string in reverse
-sprintr == `[<]>[.>]<`;
+# spop (s -- )
+# string pop
+# pops a null terminated string
+spop == sprint sdrop;
 
 # sread (-- s)
 # string read
-# input ['a', 'b', 'c', 'd'] is equivalent to
-# f == "abcd";
-sread == `,[>[>]<[[->+<]<],[->+<]>]`;
-
-# sreadr (-- s)
-# string read reverse
 # input ['a', 'b', 'c', 'd'] is equivalent to 
 # f == 'abcd';
-sreadr == `,[>,]<`;
+sread == `,[>,]<`;
 
 # slen (s -- l)
-# consumes s and returns it's len
+# consumes s and returns it's length
 slen == `[[-]>[-<+>]<+<]`;
 
 ##### Control Flow #####
 
 # {c}[{body}{cond}]
-while (C B) ==? C spop '[' pop B spop C spop ']' pop; 
+while (C B) ==? C spopr '[' pop B spopr C spopr ']<' spopr; 

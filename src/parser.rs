@@ -6,6 +6,7 @@ use crate::{
     semantic::apply_semantics,
 };
 use colored::Colorize;
+use either::Either;
 use pest::{
     error::{Error, ErrorVariant},
     iterators::{Pair, Pairs},
@@ -14,6 +15,7 @@ use pest::{
 use pest_derive::Parser;
 use std::{collections::HashMap, rc::Rc, sync::atomic::AtomicUsize};
 use std::{fmt::Write, sync::atomic::Ordering};
+use Either::{Left, Right};
 
 #[derive(Parser)]
 #[grammar = "serotonin.pest"]
@@ -67,7 +69,7 @@ pub fn compile(name: &str, input: &str) -> Result<String, Vec<Error<Rule>>> {
                             .bold()
                             .to_string(),
                     },
-                    mains[1].span,
+                    (&mains[1].span).into(),
                 )])
             } else {
                 Ok(&mains[0])
@@ -224,14 +226,14 @@ impl<'a> Dependencies<'a> {
 pub(crate) struct ModuleAst<'a> {
     pub(crate) name: String,
     pub(crate) imports: Vec<Pair<'a, Rule>>,
-    pub(crate) definitions: HashMap<String, Vec<Definition<'a>>>,
+    pub(crate) definitions: HashMap<String, Vec<Definition>>,
 }
 
-fn parse_module_ast<'a>(
+fn parse_module_ast(
     name: String,
-    pairs: Pairs<'a, Rule>,
+    pairs: Pairs<'_, Rule>,
     id: Rc<AtomicUsize>,
-) -> Result<ModuleAst<'a>, Vec<Error<Rule>>> {
+) -> Result<ModuleAst, Vec<Error<Rule>>> {
     // add input str to illicit layer
     let mut imports = Vec::new();
     let mut definitions: HashMap<String, Vec<Definition>> = HashMap::new();
@@ -366,10 +368,7 @@ fn parse_definition_ast(pair: Pair<Rule>, id: Rc<AtomicUsize>) -> Result<Definit
         }
     }
 
-    let stack = stack_pair.map(|pair| StackArgs {
-        args: stack,
-        span: pair.as_span(),
-    });
+    let stack = stack_pair.map(|pair| StackArgs { args: stack });
 
     Ok(Definition {
         name,
@@ -377,38 +376,53 @@ fn parse_definition_ast(pair: Pair<Rule>, id: Rc<AtomicUsize>) -> Result<Definit
         body: body.unwrap(),
         typ: typ.unwrap(),
         unique_id: id.fetch_add(1, Ordering::Relaxed),
-        span: pair.as_span(),
+        span: pair.as_span().into(),
     })
 }
 
 fn parse_term_ast(pair: Pair<Rule>) -> Result<Vec<Expression>, Error<Rule>> {
     assert_eq!(pair.as_rule(), Rule::term);
 
-    pair.into_inner().map(parse_factor_ast).collect()
+    let mut expressions = Vec::new();
+
+    for p in pair.into_inner() {
+        let expr = parse_factor_ast(p)?;
+
+        match expr {
+            Left(expr) => {
+                expressions.push(expr);
+            }
+            Right(vec) => {
+                expressions.extend(vec);
+            }
+        }
+    }
+
+    Ok(expressions)
 }
 
-fn parse_factor_ast(pair: Pair<Rule>) -> Result<Expression, Error<Rule>> {
+fn parse_factor_ast(pair: Pair<Rule>) -> Result<Either<Expression, Vec<Expression>>, Error<Rule>> {
     match pair.as_rule() {
         Rule::atomic => {
             // Either "module.function" or "function"
             if let Some(dot) = pair.as_str().find('.') {
                 let (module, name) = pair.as_str().split_at(dot);
 
-                Ok(Expression::Function(
+                Ok(Left(Expression::Function(
                     String::from(module),
                     String::from(&name[1..]),
-                    pair.as_span(),
-                ))
+                    pair.as_span().into(),
+                )))
             } else {
-                Ok(Expression::Function(
+                Ok(Left(Expression::Function(
                     String::new(),
                     pair.as_str().to_string(),
-                    pair.as_span(),
-                ))
+                    pair.as_span().into(),
+                )))
             }
         }
         Rule::hex_integer => match u8::from_str_radix(&pair.as_str()[2..], 16) {
-            Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
+            Ok(byte) => Ok(Left(Expression::Constant(byte, pair.as_span().into()))),
             Err(err) => Err(Error::new_from_span(
                 ErrorVariant::CustomError {
                     message: format!("{}", err),
@@ -417,7 +431,7 @@ fn parse_factor_ast(pair: Pair<Rule>) -> Result<Expression, Error<Rule>> {
             )),
         },
         Rule::integer => match pair.as_str().parse::<u8>() {
-            Ok(byte) => Ok(Expression::Constant(byte, pair.as_span())),
+            Ok(byte) => Ok(Left(Expression::Constant(byte, pair.as_span().into()))),
             Err(err) => {
                 return Err(Error::new_from_span(
                     ErrorVariant::CustomError {
@@ -428,23 +442,25 @@ fn parse_factor_ast(pair: Pair<Rule>) -> Result<Expression, Error<Rule>> {
             }
         },
         Rule::string => {
-            let mut constants = vec![Expression::Constant(0, pair.as_span().get(0..1).unwrap())];
+            let mut constants = vec![Expression::Constant(
+                0,
+                pair.as_span().get(0..1).unwrap().into(),
+            )];
             constants.extend(pair.clone().into_inner().map(constant_from_char));
 
-            Ok(Expression::Quotation(constants, pair.clone().as_span()))
+            Ok(Right(constants))
         }
-        Rule::raw_string => Ok(Expression::Quotation(
+        Rule::raw_string => Ok(Right(
             pair.clone().into_inner().map(constant_from_char).collect(),
-            pair.as_span(),
         )),
-        Rule::brainfuck => Ok(Expression::Brainfuck(
+        Rule::brainfuck => Ok(Left(Expression::Brainfuck(
             pair.as_str().to_string(),
-            pair.as_span(),
-        )),
-        Rule::term => Ok(Expression::Quotation(
+            pair.as_span().into(),
+        ))),
+        Rule::term => Ok(Left(Expression::Quotation(
             parse_term_ast(pair.clone())?,
-            pair.as_span(),
-        )),
+            pair.as_span().into(),
+        ))),
         _ => unreachable!(),
     }
 }
@@ -471,5 +487,5 @@ pub(crate) fn constant_from_char(pair: Pair<Rule>) -> Expression {
         _ => unreachable!(),
     };
 
-    Expression::Constant(b, pair.as_span())
+    Expression::Constant(b, pair.as_span().into())
 }

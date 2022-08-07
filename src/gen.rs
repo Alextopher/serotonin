@@ -11,8 +11,8 @@ use std::collections::{HashMap, HashSet};
 const MAX_ITERATIONS: usize = 1000000;
 
 pub(crate) fn gen_main<'a>(
-    modules: &'a HashMap<String, ModuleAst<'a>>,
-    def: &'a Definition,
+    modules: &HashMap<String, ModuleAst<'a>>,
+    def: &Definition,
 ) -> Result<String, Error<Rule>> {
     // main function must be a function and have no arguments
     if def.stack.is_some() {
@@ -22,7 +22,7 @@ pub(crate) fn gen_main<'a>(
                     .bold()
                     .to_string(),
             },
-            def.span,
+            pest::Span::new(&def.span.data, def.span.start, def.span.end).unwrap(),
         ));
     }
 
@@ -32,9 +32,9 @@ pub(crate) fn gen_main<'a>(
 }
 
 pub(crate) fn compile<'a>(
-    modules: &'a HashMap<String, ModuleAst<'a>>,
-    def: &'a Definition,
-    constraints: HashMap<char, Expression<'a>>,
+    modules: &HashMap<String, ModuleAst<'a>>,
+    def: &Definition,
+    constraints: HashMap<char, Expression>,
     builds: &mut HashSet<usize>,
 ) -> Result<String, Error<Rule>> {
     println!(
@@ -61,9 +61,9 @@ pub(crate) fn compile<'a>(
 }
 
 fn compile_body<'a>(
-    modules: &'a HashMap<String, ModuleAst<'a>>,
+    modules: &HashMap<String, ModuleAst<'a>>,
     body: &[Expression],
-    constraints: &HashMap<char, Expression<'a>>,
+    constraints: &HashMap<char, Expression>,
     builds: &mut HashSet<usize>,
 ) -> Result<String, Error<Rule>> {
     let body = apply_constraints(&constraints, &body);
@@ -128,11 +128,15 @@ fn compile_body<'a>(
                         let bf = compile(modules, def, new_constraints, builds)?;
                         // Remove the pattern from the stack
                         stack.truncate(stack.len() - def.stack_size());
-                        stack.push(Expression::Brainfuck(bf, expr.span()))
+                        stack.push(Expression::Brainfuck(bf, expr.span().clone()))
                     }
                     DefinitionType::InlineComposition => {
                         // Extend the work list with the body of the function
-                        work.extend(apply_constraints(&constraints, &def.body));
+                        work.extend(
+                            apply_constraints(&new_constraints, &def.body)
+                                .into_iter()
+                                .rev(),
+                        );
 
                         // Remove the pattern from the stack
                         stack.truncate(stack.len() - def.stack_size());
@@ -152,7 +156,7 @@ fn compile_body<'a>(
                         match x {
                             Ok(output) => {
                                 for c in output {
-                                    stack.push(Expression::Constant(c.0, expr.span()))
+                                    stack.push(Expression::Constant(c.0, expr.span().clone()))
                                 }
                             }
                             Err(Either::Left(e)) => {
@@ -165,7 +169,7 @@ fn compile_body<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    expr.span(),
+                                    expr.span().into(),
                                 ))
                             }
                             Err(Either::Right(e)) => {
@@ -178,7 +182,7 @@ fn compile_body<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    expr.span(),
+                                    expr.span().into(),
                                 ))
                             }
                         }
@@ -198,7 +202,7 @@ fn compile_body<'a>(
                         match x {
                             Ok(output) => {
                                 let bf = String::from_iter(output.iter().map(|x| x.0 as char));
-                                stack.push(Expression::Brainfuck(bf, expr.span()))
+                                stack.push(Expression::Brainfuck(bf, expr.span().clone()))
                             }
                             Err(Either::Left(e)) => {
                                 return Err(Error::new_from_span(
@@ -210,7 +214,7 @@ fn compile_body<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    expr.span(),
+                                    expr.span().into(),
                                 ))
                             }
                             Err(Either::Right(e)) => {
@@ -223,7 +227,7 @@ fn compile_body<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    expr.span(),
+                                    expr.span().into(),
                                 ))
                             }
                         }
@@ -279,12 +283,9 @@ fn compile_body<'a>(
     Ok(result)
 }
 
-fn pattern_match<'a>(
-    stack: &'a [Expression],
-    pattern: &'a StackArgs,
-) -> Option<HashMap<char, Expression<'a>>> {
+fn pattern_match(stack: &[Expression], pattern: &StackArgs) -> Option<HashMap<char, Expression>> {
     // Pattern matching match letter to the constants
-    let mut constraints: HashMap<char, &Expression<'a>> = HashMap::new();
+    let mut constraints: HashMap<char, &Expression> = HashMap::new();
     // Iterate over the stack arguments in reverse order
     let mut expressions = stack.iter().rev();
 
@@ -384,10 +385,10 @@ fn pattern_match<'a>(
     }
 }
 
-fn apply_constraints<'a>(
-    constraints: &'a HashMap<char, Expression>,
-    expressions: &'a [Expression],
-) -> Vec<Expression<'a>> {
+fn apply_constraints(
+    constraints: &HashMap<char, Expression>,
+    expressions: &[Expression],
+) -> Vec<Expression> {
     let mut result = vec![];
 
     for mut expr in expressions {
@@ -403,7 +404,7 @@ fn apply_constraints<'a>(
             Expression::Quotation(inner, _) => {
                 result.push(Expression::Quotation(
                     apply_constraints(constraints, inner),
-                    expr.span(),
+                    expr.span().clone(),
                 ));
             }
             _ => {

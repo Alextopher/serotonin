@@ -15,7 +15,7 @@ use crate::parser::{ModuleAst, Rule};
 // - Verify that all functions are defined within scope
 // - Where applicable replace function calls with fully qualified names
 pub(crate) fn apply_semantics<'a>(
-    asts: &'a mut HashMap<&str, ModuleAst>,
+    asts: &mut HashMap<&str, ModuleAst<'a>>,
 ) -> Result<HashMap<String, ModuleAst<'a>>, Vec<Error<Rule>>> {
     let mut errors: Vec<Error<Rule>> = Vec::new();
 
@@ -47,7 +47,7 @@ pub(crate) fn apply_semantics<'a>(
                                 .bold()
                                 .to_string(),
                             },
-                            def.span,
+                            (&def.span).into(),
                         )),
                         None => {
                             stack_errors.insert(
@@ -63,7 +63,7 @@ pub(crate) fn apply_semantics<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    def.span,
+                                    (&def.span).into(),
                                 )],
                             );
                             originals.insert(
@@ -78,7 +78,7 @@ pub(crate) fn apply_semantics<'a>(
                                         .bold()
                                         .to_string(),
                                     },
-                                    original.span,
+                                    (&original.span).into(),
                                 ),
                             );
                         }
@@ -106,7 +106,7 @@ pub(crate) fn apply_semantics<'a>(
         });
     }
 
-    let mut new_asts: HashMap<String, ModuleAst<'a>> = HashMap::new();
+    let mut new_asts: HashMap<String, ModuleAst> = HashMap::new();
 
     // Verify that every function used in the module is defined somewhere in scope and replace function calls with fully qualified names.
     for (_, ast) in asts.iter() {
@@ -140,7 +140,7 @@ pub(crate) fn apply_semantics<'a>(
                     stack: def.stack.clone(),
                     body,
                     unique_id: def.unique_id,
-                    span: def.span,
+                    span: def.span.clone(),
                 })
             }
 
@@ -167,11 +167,11 @@ pub(crate) fn apply_semantics<'a>(
 // Replaces function calls with fully qualified names
 // - Prefer fully qualified functions that are first in scope
 // - Cache the results of finding functions to improve performance
-fn qualify_expression<'a>(
+fn qualify_expression(
     scopes: &Vec<&ModuleAst>,
-    stack: &Option<StackArgs<'a>>,
-    e: &Expression<'a>,
-) -> Result<Expression<'a>, Vec<Error<Rule>>> {
+    stack: &Option<StackArgs>,
+    e: &Expression,
+) -> Result<Expression, Vec<Error<Rule>>> {
     match e {
         Expression::Constant(_, _) | Expression::Brainfuck(_, _) => Ok(e.clone()),
         Expression::Quotation(q, p) => {
@@ -186,7 +186,7 @@ fn qualify_expression<'a>(
             }
 
             if errors.is_empty() {
-                Ok(Expression::Quotation(quotation, *p))
+                Ok(Expression::Quotation(quotation, p.clone()))
             } else {
                 Err(errors)
             }
@@ -212,11 +212,11 @@ fn qualify_expression<'a>(
             }
 
             // Otherwise find the function in the scope
-            match qualify_string(scopes, module, name, span) {
+            match qualify_string(scopes, module, name, &span.into()) {
                 Ok((module, name)) => Ok(Expression::Function(
                     module.to_owned(),
                     name.to_owned(),
-                    *span,
+                    span.clone(),
                 )),
                 Err(e) => Err(vec![e]),
             }
@@ -225,10 +225,10 @@ fn qualify_expression<'a>(
 }
 
 fn qualify_string<'a>(
-    scopes: &[&'a ModuleAst],
+    scopes: &[&'a ModuleAst<'a>],
     module_name: &'a str,
     name: &'a str,
-    span: &'a Span<'a>,
+    span: &'a pest::Span<'a>,
 ) -> Result<(&'a str, &'a str), Error<Rule>> {
     let this = scopes.last().unwrap();
 

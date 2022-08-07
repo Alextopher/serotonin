@@ -1,3 +1,5 @@
+#![feature(pointer_byte_offsets)]
+
 extern crate clap;
 extern crate pest;
 extern crate pest_derive;
