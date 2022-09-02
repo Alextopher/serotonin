@@ -33,7 +33,7 @@ escaped = { "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | "0") }
 escaped_hex = @{ "\\" ~ ("x" ~ ASCII_HEX_DIGIT{2}) }
 
 // Characters that can be used in a function name
-good_character = { LETTER | DECIMAL_NUMBER | "*" | "+" | "-" | "_" | "!" }
+good_character = { LETTER | DECIMAL_NUMBER | "*" | "+" | "-" | "_" | "!" | "/" | "%" }
 
 // atomic-symbol
 // any printing character which is not a reserved character or a digit or the single or double quote character

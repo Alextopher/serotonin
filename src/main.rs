@@ -4,11 +4,11 @@ use std::{io::Read, process::exit};
 fn main() {
     let app = clap::clap_app!(myapp =>
         (name: "serotonin")
-        (version: "0.4.0")
         (author: "Christopher Mahoney")
         (about: "Compiles serotonin to Brainfuck")
         (@arg INPUT: +required +takes_value "serotonin source file")
         (@arg OUTPUT: -o +takes_value "output file")
+        (@arg optimize: --optimize -O "optimize brainfuck")
         (@arg verbose: -v "print verbose output")
         (@arg timings: -t "print timings")
     );
@@ -45,7 +45,11 @@ fn main() {
     let name = path.file_stem().unwrap().to_string_lossy();
 
     // Create config from command line flags
-    let config = Config::new(matches.is_present("verbose"), matches.is_present("timings"));
+    let config = Config::new(
+        matches.is_present("verbose"),
+        matches.is_present("timings"),
+        matches.is_present("optimize"),
+    );
 
     match std::fs::File::open(path) {
         Ok(mut file) => {

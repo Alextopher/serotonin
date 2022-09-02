@@ -20,21 +20,22 @@ nip2 == stack.nip2;
 tuck == stack.tuck;
 tuck2 == stack.tuck2;
 
+# pick ( a0 .. an n -- a0 .. an a0 )
+#pick (n) ==? '<' n dupn '[-' '>' n dupn '+>+<' '<' n dupn ']' '>' n dupn '>'
+
 # dupn (a n -- a a ... a)
-#
 # dupn (a 0 -- )
-# a n dupn == a a n-1 dupn
 dupn == [] [dec over swap] while drop;
 dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' sprint;
 dupn (0) == drop drop;
 dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while sprint;
 dupn (0 n) ==! n [] [dec `>.<`] while; 
 
-# dropn (... n -- )
+# dropn (a0 .. an n -- )
 dropn == [] [dec swap drop] while;
-dropn (n) == n [] [dec "[-]<" spop] while;
+dropn (n) ==? n [] [dec "[-]<" spop] while;
 
-# popn (... n -- )
+# popn (a0 .. an n -- )
 # pops n items from the stack
 popn == [] [dec swap pop] while;
 popn (n) ==? n [] [dec ".[-]<" spop] while;
@@ -121,9 +122,16 @@ dec (a) ==! a dec pop;
 - (b) ==? '-' b dupn sprint;
 - (a b) ==! a b - pop;
 
+# / (a b -- a/b)
+/ == divmod nip;
+
+# % (a b -- a%b)
+% == divmod drop;
+
 # divmod (n d -- n%d n/d)
 # credit to https:#esolangs.org/wiki/Brainfuck_algorithms
 divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
+divmod (a b) ==! a b divmod pop pop;
 
 # multiplies the two numbers on the top of the stack
 * == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;

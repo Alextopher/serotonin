@@ -18,20 +18,6 @@ macro_rules! equivalent {
     };
 }
 
-macro_rules! exact {
-    ($a:expr, $b:expr) => {
-        assert_eq!(
-            compile(
-                "main",
-                &format!("IMPORT std; main == {};", $a),
-                Config::default()
-            )
-            .unwrap(),
-            $b
-        )
-    };
-}
-
 macro_rules! fails {
     ($a:expr) => {
         assert!(compile("main", $a, Config::default()).is_err())
@@ -85,28 +71,23 @@ fn arithmetic() {
     equivalent!("40 inc", "41");
     equivalent!("0 inc", "1");
     equivalent!("255 inc", "0");
-    exact!("read inc", ">,+");
 
     // dec
     equivalent!("40 dec", "39");
     equivalent!("0 dec", "255");
     equivalent!("1 dec", "0");
-    exact!("read dec", ">,-");
 
     // +
     equivalent!("40 2 +", "42");
     equivalent!("0 0 +", "0");
     equivalent!("255 1 +", "0");
     equivalent!("255 2 +", "1");
-    exact!("read 1 +", ">,+");
 
     // -
     equivalent!("40 2 -", "38");
     equivalent!("0 0 -", "0");
     equivalent!("0 1 -", "255");
     equivalent!("1 2 -", "255");
-    exact!("read 1 -", ">,-");
-    exact!("read 20 -", ">,--------------------");
 
     // *
     equivalent!("40 2 *", "80");
@@ -115,7 +96,6 @@ fn arithmetic() {
     equivalent!("1 0 *", "0");
     equivalent!("255 1 *", "255");
     equivalent!("255 2 *", "254");
-    exact!("read 10 *", ">,[->++++++++++<]>[-<+>]<")
 }
 
 #[test]
@@ -123,10 +103,6 @@ fn dupn() {
     // dupn
     equivalent!("1 10 dupn", "1 1 1 1 1 1 1 1 1 1");
     equivalent!("0 10 dupn", "0 0 0 0 0 0 0 0 0 0");
-    exact!(
-        "read 10 dupn",
-        ">,[->+>+>+>+>+>+>+>+>+>+<<<<<<<<<<]>[>]<[-<<<<<<<<<<+>>>>>>>>>>]"
-    );
 }
 
 // LOGIC

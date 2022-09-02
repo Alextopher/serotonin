@@ -20,6 +20,7 @@ extern crate clap;
 extern crate pest;
 extern crate pest_derive;
 
+mod bfoptimizer;
 pub mod config;
 pub(crate) mod definition;
 pub(crate) mod gen;
@@ -116,10 +117,14 @@ fn compile_with_timings(
         Err(e) => Err(vec![e]),
     }?;
 
-    println!("Compiling took: {}us", start.elapsed().as_micros());
-    start = std::time::Instant::now();
+    println!("Gen took: {}us", start.elapsed().as_micros());
+    println!("Compiling took: {}us", full_start.elapsed().as_micros());
 
-    Ok(code)
+    if config.optimize {
+        Ok(bfoptimizer::optimize_bf(&code))
+    } else {
+        Ok(code)
+    }
 }
 
 fn compile_without_timings(
@@ -171,16 +176,19 @@ fn compile_without_timings(
         )]),
     }?;
 
-    let c = match gen::gen_main(&new_ast, main) {
+    let code = match gen::gen_main(&new_ast, main) {
         Ok(c) => Ok(c),
         Err(e) => Err(vec![e]),
     }?;
 
-    // Ok(bfoptimizer::optimize_bf(c))
-    Ok(c)
+    if config.optimize {
+        Ok(bfoptimizer::optimize_bf(&code))
+    } else {
+        Ok(code)
+    }
 }
 
 #[cfg(test)]
-mod test_compiler;
+mod test_propagation;
 #[cfg(test)]
 mod test_std;

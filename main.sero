@@ -1,3 +1,5 @@
 IMPORT std;
 
-main == "Hello World!" [] [pop] while;
+fib == 1 print 1 print [dup2 + print] [] while;
+
+main == fib;
