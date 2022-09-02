@@ -1,24 +1,43 @@
+IMPORT stack;
+
 ##### STACK MANIPULATION #####
 
-# dup (a -- a a)
-dup == `[->+>+<<]>>[-<<+>>]<`;
-dup (a) == a a;
+# re-exports from stack.sero
+dup == stack.dup;
+dup2 == stack.dup2;
+drop == stack.drop;
+drop2 == stack.drop2;
+swap == stack.swap;
+swap2 == stack.swap2;
+over == stack.over;
+over2 == stack.over2;
+rot == stack.rot;
+rot2 == stack.rot2;
+-rot == stack.-rot;
+-rot2 == stack.-rot2;
+nip == stack.nip;
+nip2 == stack.nip2;
+tuck == stack.tuck;
+tuck2 == stack.tuck2;
 
-# drop (a -- )
-drop == `[-]<`;
-drop (@) == ;
+# dupn (a n -- a a ... a)
+#
+# dupn (a 0 -- )
+# a n dupn == a a n-1 dupn
+dupn == [] [dec over swap] while drop;
+dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' sprint;
+dupn (0) == drop drop;
+dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while sprint;
+dupn (0 n) ==! n [] [dec `>.<`] while; 
 
-# swap (a b -- b a)
-swap == `<[->>+<<]>[-<+>]>[-<+>]<`;
-swap (a b) == b a;
+# dropn (... n -- )
+dropn == [] [dec swap drop] while;
+dropn (n) == n [] [dec "[-]<" spop] while;
 
-# over (a b -- a b a)
-over == `<[->>+>+<<<]>>>[-<<<+>>>]<`;
-over (a b) == a b a;
-
-# rot (a b c -- b c a)
-rot == `<<[->>>+<<<]>[-<+>]>[-<+>]>[-<+>]<`;
-rot (a b c) == b c a;
+# popn (... n -- )
+# pops n items from the stack
+popn == [] [dec swap pop] while;
+popn (n) ==? n [] [dec ".[-]<" spop] while;
 
 ##### IO #####
 
@@ -33,6 +52,11 @@ pop == print drop;
 # read a from stdin
 read == `>,`;
 
+# readd ( -- h t o)
+# reads a decimal number from stdin
+# the number must be 3 digits long
+readd == 0 read '0' - 100 * + read '0' - 10 * + read '0' - +;
+
 # pops a number and prints it as decimal
 # (n -- )
 popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;
@@ -40,6 +64,42 @@ popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;
 # prints a number as decimal
 # (n -- n)
 printd == dup popd;
+
+##### STRINGS #####
+
+# sdrop (s -- )
+# string drop
+# drops a null terminated string
+sdrop == `[[-]<]<`;
+
+# sprint (s -- s)
+# string print
+# prints a null terminated string
+sprint == `[<]>[.>]<`;
+
+# spop (s -- )
+# string pop
+# pops a null terminated string
+spop == sprint sdrop;
+
+# sread (-- s)
+# string read
+# input ['a', 'b', 'c', 'd'] is equivalent to 
+# f == 'abcd';
+sread == `,[>,]<`;
+
+# readuntil (c -- s)
+# read until a character c is encountered
+# c is not included in the output
+readuntil (c) == '-' c dupn '[' '+' c dupn ',' '-' c dupn ']' spop;
+
+# readln ( -- s)
+# read a line from stdin. Lines end with \n
+readln == 0 '\n' readuntil;
+
+# slen (s -- l)
+# consumes s and returns it's length
+slen == `[[-]>[-<+>]<+<]`;
 
 ##### ARITHMETIC #####
 
@@ -98,42 +158,6 @@ not (0) == true;
 # neq (a b -- a != b)
 # returns 1 if a != b otherwise returns 0
 neq == eq not;
-
-# dupn (a n -- a a ... a)
-# dupn (a 0 -- )
-dupn == [dup dec swap] [drop over swap] while drop drop;
-dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' sprint;
-dupn (0) == drop drop;
-dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while sprint;
-dupn (a 0) == ;
-dupn (0 n) ==! n [] [dec `>.<`] while; 
-
-##### STRINGS #####
-
-# sdrop (s -- )
-# string drop
-# drops a null terminated string
-sdrop == `[[-]<]`;
-
-# sprint (s -- s)
-# string print
-# prints a null terminated string
-sprint == `[<]>[.>]<`;
-
-# spop (s -- )
-# string pop
-# pops a null terminated string
-spop == sprint sdrop;
-
-# sread (-- s)
-# string read
-# input ['a', 'b', 'c', 'd'] is equivalent to 
-# f == 'abcd';
-sread == `,[>,]<`;
-
-# slen (s -- l)
-# consumes s and returns it's length
-slen == `[[-]>[-<+>]<+<]`;
 
 ##### Control Flow #####
 

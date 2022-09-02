@@ -1,6 +1,3 @@
 IMPORT std;
 
-one == two;
-two == one;
-
-main == one;
+main == "Hello World!" [] [pop] while;

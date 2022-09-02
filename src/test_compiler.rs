@@ -1,11 +1,19 @@
-use crate::compile;
+use crate::{compile, Config};
 
 // equivalent("1 2 swap", "2 1");
 macro_rules! equivalent {
     ($a:expr, $b:expr) => {
         assert_eq!(
-            compile("main", &format!("IMPORT std; main == {};", $a)),
-            compile("main", &format!("IMPORT std; main == {};", $b))
+            compile(
+                "main",
+                &format!("IMPORT std; main == {};", $a),
+                Config::default()
+            ),
+            compile(
+                "main",
+                &format!("IMPORT std; main == {};", $b),
+                Config::default()
+            )
         );
     };
 }
@@ -13,7 +21,12 @@ macro_rules! equivalent {
 macro_rules! exact {
     ($a:expr, $b:expr) => {
         assert_eq!(
-            compile("main", &format!("IMPORT std; main == {};", $a)).unwrap(),
+            compile(
+                "main",
+                &format!("IMPORT std; main == {};", $a),
+                Config::default()
+            )
+            .unwrap(),
             $b
         )
     };
@@ -21,43 +34,48 @@ macro_rules! exact {
 
 macro_rules! fails {
     ($a:expr) => {
-        assert!(compile("main", $a).is_err())
+        assert!(compile("main", $a, Config::default()).is_err())
     };
+}
+
+// ints match corresponding hex
+#[test]
+fn hex_matches_int() {
+    for i in 0u8..=255 {
+        equivalent!(format!("{:#04x}", i), format!("{}", i));
+    }
 }
 
 // STACK MANIPULATION
 #[test]
 fn stack_manipulation() {
-    // swap
-    equivalent!("1 2 swap", "2 1");
-    equivalent!("0 0 swap", "0 0");
-    equivalent!("0 1 swap", "1 0");
-    equivalent!("1 0 swap", "0 1");
-
-    // dup
     equivalent!("1 dup", "1 1");
-    equivalent!("0 dup", "0 0");
-    equivalent!("0 1 dup", "0 1 1");
-    equivalent!("1 0 dup", "1 0 0");
+    equivalent!("1 2 dup2", "1 2 1 2");
 
-    // drop
     equivalent!("1 drop", "");
-    equivalent!("0 drop", "");
-    equivalent!("0 1 drop", "0");
-    equivalent!("1 0 drop", "1");
+    equivalent!("1 2 drop2", "");
 
-    // over
+    equivalent!("1 2 swap", "2 1");
+    equivalent!("1 2 3 4 swap2", "3 4 1 2");
+
     equivalent!("1 2 over", "1 2 1");
-    equivalent!("0 0 over", "0 0 0");
-    equivalent!("0 1 over", "0 1 0");
-    equivalent!("1 0 over", "1 0 1");
+    equivalent!("1 2 3 4 over2", "1 2 3 4 1 2");
 
-    // rot
     equivalent!("1 2 3 rot", "2 3 1");
-    equivalent!("0 0 0 rot", "0 0 0");
-    equivalent!("0 1 0 rot", "1 0 0");
-    equivalent!("1 0 1 rot", "0 1 1");
-    equivalent!("1 2 3 4 rot", "1 3 4 2");
+    equivalent!("1 2 3 rot rot rot", "1 2 3");
+    equivalent!("1 2 3 4 5 6 rot2", "3 4 5 6 1 2");
+    equivalent!("1 2 3 4 5 6 rot2 rot2 rot2", "1 2 3 4 5 6");
+
+    equivalent!("1 2 3 -rot", "3 1 2");
+    equivalent!("1 2 3 -rot -rot -rot", "1 2 3");
+    equivalent!("1 2 3 4 5 6 -rot2", "5 6 1 2 3 4");
+    equivalent!("1 2 3 4 5 6 -rot2 -rot2 -rot2", "1 2 3 4 5 6");
+
+    equivalent!("1 2 nip", "2");
+    equivalent!("1 2 3 4 nip2", "3 4");
+
+    equivalent!("1 2 tuck", "2 1 2");
+    equivalent!("1 2 3 4 tuck2", "3 4 1 2 3 4");
 }
 
 // ARITHMETIC
@@ -97,7 +115,7 @@ fn arithmetic() {
     equivalent!("1 0 *", "0");
     equivalent!("255 1 *", "255");
     equivalent!("255 2 *", "254");
-    exact!("read 10 *", ",[->++++++++++<]>[-<+>]")
+    exact!("read 10 *", ">,[->++++++++++<]>[-<+>]<")
 }
 
 #[test]

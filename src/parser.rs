@@ -3,7 +3,7 @@ use crate::{
     pest::Parser,
     LIBRARIES,
 };
-use either::Either;
+use either::Either::{self, *};
 use pest::{
     error::{Error, ErrorVariant},
     iterators::{Pair, Pairs},
@@ -11,7 +11,6 @@ use pest::{
 use pest_derive::Parser;
 use std::{collections::HashMap, rc::Rc, sync::atomic::AtomicUsize};
 use std::{fmt::Write, sync::atomic::Ordering};
-use Either::{Left, Right};
 
 #[derive(Parser)]
 #[grammar = "serotonin.pest"]

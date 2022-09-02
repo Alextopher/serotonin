@@ -1,0 +1,12 @@
+IMPORT std;
+
+# input: length followed by a permutation : 4 cdab
+# output: a BF program that applies the permutation to a stack
+main == "Enter length (3 digits): " spop 0 readd [dup2 neq] [drop over inc read 'a' - -rot swap] while;
+
+
+
+
+
+# count from 0 to n
+count == 0 read [dup2 neq] [drop over inc swap] while [] [popd ' ' pop] while;

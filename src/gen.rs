@@ -1,14 +1,13 @@
 use crate::{
     definition::{Definition, DefinitionType, Expression, StackArg, StackArgs},
     parser::{ModuleAst, Rule},
+    MAX_ITERATIONS,
 };
-use bf_instrumentor::OptimizationLevel;
+use bfi::Error::*;
 use colored::Colorize;
 use either::Either;
 use pest::error::{Error, ErrorVariant};
 use std::collections::{HashMap, HashSet};
-
-const MAX_ITERATIONS: usize = 1000000;
 
 pub(crate) fn gen_main<'a>(
     modules: &HashMap<String, ModuleAst<'a>>,
@@ -40,12 +39,9 @@ pub(crate) fn compile<'a>(
     // Add function to the build list
     builds.insert(def.unique_id);
 
-    println!("starting: {}", def.name);
     let result = compile_body(modules, &def.body, &constraints, builds)?;
-    println!("ending: {} | {}", def.name, result);
 
     builds.remove(&def.unique_id);
-
     Ok(result)
 }
 
@@ -88,8 +84,6 @@ fn compile_body<'a>(
                         if builds.contains(&def.unique_id) {
                             continue;
                         }
-
-                        println!("trying: {} {}", def.name, def.stack_as_str());
 
                         // Check if we match the pattern
                         match &def.stack {
@@ -143,49 +137,33 @@ fn compile_body<'a>(
                                 // Remove the pattern from the stack
                                 stack.truncate(stack.len() - def.stack_size());
 
-                                // Execute the definition with no inputs
-                                let x = bf_instrumentor::run(
-                                    &bf,
-                                    &[],
-                                    OptimizationLevel::O2,
-                                    MAX_ITERATIONS,
-                                );
-
-                                // Push the results onto the stack as constants
-                                match x {
+                                match bfi::execute(&bf, [], MAX_ITERATIONS) {
                                     Ok(output) => {
                                         for c in output {
-                                            stack.push(Expression::Constant(
-                                                c.0,
-                                                expr.span().clone(),
-                                            ))
+                                            stack.push(Expression::Constant(c, expr.span().clone()))
                                         }
                                     }
-                                    Err(Either::Left(e)) => {
-                                        return Err(Error::new_from_span(
-                                            pest::error::ErrorVariant::CustomError {
-                                                message: format!(
-                                                    "Error executing inline composition: {:?}",
+                                    Err(e) => {
+                                        let message = match e {
+                                            ParseError(e) => {
+                                                format!(
+                                                    "Error compiling inline composition {:?}",
                                                     e
                                                 )
-                                                .bold()
-                                                .to_string(),
-                                            },
-                                            expr.span().into(),
-                                        ))
-                                    }
-                                    Err(Either::Right(e)) => {
-                                        return Err(Error::new_from_span(
-                                            pest::error::ErrorVariant::CustomError {
-                                                message: format!(
-                                                    "Error compiling inline composition: {:?}",
+                                            }
+                                            RunTimeError(e) => {
+                                                format!(
+                                                    "Error executing inline composition {:?}",
                                                     e
                                                 )
-                                                .bold()
-                                                .to_string(),
+                                            }
+                                        };
+                                        return Err(Error::new_from_span(
+                                            pest::error::ErrorVariant::CustomError {
+                                                message: message.bold().to_string(),
                                             },
                                             expr.span().into(),
-                                        ))
+                                        ));
                                     }
                                 }
                             }
@@ -197,45 +175,34 @@ fn compile_body<'a>(
                                 stack.truncate(stack.len() - def.stack_size());
 
                                 // Execute the definition with no inputs
-                                let x = bf_instrumentor::run(
-                                    &bf,
-                                    &[],
-                                    OptimizationLevel::O2,
-                                    MAX_ITERATIONS,
-                                );
-
-                                // Push the result on the stack as a bf block
-                                match x {
+                                match bfi::execute(&bf, [], MAX_ITERATIONS) {
                                     Ok(output) => {
+                                        // Push the result on the stack as a bf block
                                         let bf =
-                                            String::from_iter(output.iter().map(|x| x.0 as char));
+                                            String::from_iter(output.iter().map(|x| *x as char));
                                         stack.push(Expression::Brainfuck(bf, expr.span().clone()))
                                     }
-                                    Err(Either::Left(e)) => {
-                                        return Err(Error::new_from_span(
-                                            pest::error::ErrorVariant::CustomError {
-                                                message: format!(
-                                                    "Error executing inline composition: {:?}",
+                                    Err(e) => {
+                                        let message = match e {
+                                            ParseError(e) => {
+                                                format!(
+                                                    "Error compiling inline composition {:?}",
                                                     e
                                                 )
-                                                .bold()
-                                                .to_string(),
-                                            },
-                                            expr.span().into(),
-                                        ))
-                                    }
-                                    Err(Either::Right(e)) => {
-                                        return Err(Error::new_from_span(
-                                            pest::error::ErrorVariant::CustomError {
-                                                message: format!(
-                                                    "Error compiling inline composition: {:?}",
+                                            }
+                                            RunTimeError(e) => {
+                                                format!(
+                                                    "Error executing inline composition {:?}",
                                                     e
                                                 )
-                                                .bold()
-                                                .to_string(),
+                                            }
+                                        };
+                                        return Err(Error::new_from_span(
+                                            pest::error::ErrorVariant::CustomError {
+                                                message: message.bold().to_string(),
                                             },
                                             expr.span().into(),
-                                        ))
+                                        ));
                                     }
                                 }
                             }
@@ -277,8 +244,6 @@ fn compile_body<'a>(
         .collect::<Vec<_>>()
         .join("");
 
-    println!("{}", result);
-
     Ok(result)
 }
 
@@ -291,8 +256,6 @@ fn pattern_match(stack: &[Expression], pattern: &StackArgs) -> Option<HashMap<ch
     let mut matches = true;
     for arg in pattern.args.iter() {
         if let Some(expr) = expressions.next() {
-            println!("{:?} {}", arg, expr);
-
             match (expr, arg) {
                 (Expression::Constant(a, _), StackArg::Position(c, _)) => {
                     // Check if c is already constrained

@@ -1,13 +1,10 @@
-use colored::Color;
-use colored::Colorize;
+use crate::{
+    definition::{Definition, Expression, StackArg, StackArgs},
+    parser::{ModuleAst, Rule},
+};
+use colored::{Color, Colorize};
 use pest::error::{Error, ErrorVariant};
 use std::collections::HashMap;
-
-use crate::definition::Definition;
-use crate::definition::Expression;
-use crate::definition::StackArg;
-use crate::definition::StackArgs;
-use crate::parser::{ModuleAst, Rule};
 
 // Preform semantic analysis on a Module.
 // - The same name and stack argument can not be used twice.
