@@ -129,7 +129,7 @@ dec (a) ==! a dec pop;
 % == divmod drop;
 
 # divmod (n d -- n%d n/d)
-# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
 divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
 divmod (a b) ==! a b divmod pop pop;
 
@@ -145,20 +145,21 @@ true == 1;
 false == 0;
 
 # eq (a b -- a==b)
-# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
 eq == `<[->-<]+>[<->[-]]<`;
 eq (a b) == false;
 eq (a a) == true;
 eq (0) == zeq;
 
 # zeq (a -- a==0)
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
 zeq == `>+<[>[-]<[-]]>[-<+>]<`;
 zeq (@) == false;
 zeq (0) == true;
 
 # not (a -- !a)
 # c-like ! operator. If a == 0 then !a == 1 otherwise !a == 0
-# credit to https:#esolangs.org/wiki/Brainfuck_algorithms
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
 not == `>+<[[-]>-<]>[<+>-]<`;
 not (@) == false;
 not (0) == true;
@@ -169,5 +170,5 @@ neq == eq not;
 
 ##### Control Flow #####
 
-# {c}[{body}{cond}]
+# {condition}[{body}{condition}]
 while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
