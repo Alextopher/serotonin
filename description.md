@@ -47,7 +47,7 @@ This is a series of stack functions. Which is to say each function takes as inpu
 
 Where the left-hand side of the `--` are the elements _poped_ from the stack and the right-hand side are the elements _pushed_ to the stack. You could think of this as the left having operands and the right having results. So addition could be `a b -- a+b`, where it takes 2 elements off that stack, the two terms, and it returns the sum.
 
-To simplify this expression we only need to repeatedly execution each instruction.
+To simplify this expression we only need to repeatedly execute each instruction.
 
 | stack | instructions | next function |
 |-------|--------------|------|
