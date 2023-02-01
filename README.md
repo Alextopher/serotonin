@@ -1,5 +1,7 @@
 # serotonin
 
+> I'm begining to make a formal declaration of this language.
+
 A _toy_ [stack-oriented](https://en.wikipedia.org/wiki/Stack-oriented_programming) programming language that transpiles to [Brainfuck](https://en.wikipedia.org/wiki/Brainfuck) and is inspired by [Joy](https://hypercubed.github.io/joy/joy.html).
 
 The project and documentation are works in progress.

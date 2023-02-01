@@ -3,13 +3,14 @@ pub fn optimize_bf(mut bf: &str) -> String {
     if bf.starts_with('>') && bf.ends_with('<') {
         bf = &bf[1..bf.len() - 1];
     }
+    bf.to_string()
 
     // parse
-    let ir = bfc_ir::parse(bf).unwrap();
+    //let ir = bfc_ir::parse(bf).unwrap();
 
     // optimize_bf
-    let (ir, _) = bfc_ir::optimize(ir, bfc_ir::OptimisationsFlags::all());
+    //let (ir, _) = bfc_ir::optimize(ir, bfc_ir::OptimisationsFlags::all());
 
     // decompile
-    bfc_ir::decompile(&ir)
+    //bfc_ir::decompile(&ir)
 }

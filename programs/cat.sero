@@ -1,0 +1,3 @@
+IMPORT std;
+
+main == [read] [pop] while;

@@ -1,0 +1,3 @@
+IMPORT std;
+
+main == 1 print 1 print [dup2 + print] [] while;

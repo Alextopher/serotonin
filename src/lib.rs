@@ -1,4 +1,5 @@
 #![feature(pointer_byte_offsets)]
+#![feature(let_chains)]
 
 use crate::{
     parser::{Dependencies, PestParser, Rule},
@@ -16,7 +17,6 @@ use std::{rc::Rc, sync::atomic::AtomicUsize};
 static LIBRARIES: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/src/libraries");
 const MAX_ITERATIONS: u64 = 10_000_000;
 
-extern crate clap;
 extern crate pest;
 extern crate pest_derive;
 

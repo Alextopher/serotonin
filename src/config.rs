@@ -15,6 +15,6 @@ impl Config {
     }
 
     pub fn default() -> Self {
-        Self::new(false, false, false)
+        Self::new(false, false, true)
     }
 }
