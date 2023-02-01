@@ -202,10 +202,6 @@ while ([true] B) ==? '[' B ']<' sprint;
 while ([false] ?) ==? ; # dead code !
 ```
 
-## Advanced Rewriting
-
-For addition the rewriting tricks are simple 
-
 ## Macros
 
 Earlier, when I wrote that there are 3 kinds of rewriting rules, I lied. There is a fourth rule, a "macro". Macros are similar to a generation rule but instead of executing Serotonin code to generate Brainfuck they execute Rust to generate Serotonin. Currently, there are no plans to include Macros as an extendable part of the langauge, they currently must be built into the compiler.
