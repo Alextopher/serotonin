@@ -218,7 +218,7 @@ Earlier, when I wrote that there are 3 kinds of rewriting rules, I lied. There i
 Macros have the following syntax:
 
 ```
-name! { _any_ string without curly braces }
+{ anything but curlly braces! } name!
 ```
 
 Within the compiler macros have the following signature: `fn(TODO) -> TODO`. They are given the `&str` between the curly braces and return Serotonin code to be substituted in place. Macros are helpful for more intense automated code generation that is too difficult to do in the current rewriting system. For example, the `autoperm!` macro is used to automatically generate programs to perform optimal tape shuffling using the [autoperm](https://github.com/Alextopher/autoperm) crate. 
@@ -227,11 +227,11 @@ The `rot` function in the standard library is written as follows:
 
 ```
 # rot (a b c -- b c a)
-rot == autoperm!{a b c -- b c a}; 
+rot == {a b c -- b c a} autoperm!;
 rot (a b c) == b c a;
 ```
 
-At the time of writing `autoperm!{a b c -- b c a}` generates the following BF block:
+At the time of writing `{a b c -- b c a} autoperm!` generates the following BF block:
 
 ``` 
 `[->+<]<[->+<]<[->+<]>>>[-<<<+>>>]<`
