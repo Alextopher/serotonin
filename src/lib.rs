@@ -1,6 +1,3 @@
-#![feature(pointer_byte_offsets)]
-#![feature(let_chains)]
-
 use crate::{
     parser::{Dependencies, PestParser, Rule},
     semantic::apply_semantics,

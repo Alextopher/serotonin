@@ -225,7 +225,35 @@ fn compile_body<'a>(
                     let bf = compile_body(modules, &q, constraints, builds)?;
 
                     // Push the result on the stack as a bf block
-                    stack.push(Expression::Brainfuck(bf, s.clone()))
+                    stack.push(Expression::Brainfuck(bf, s.clone()))                    
+                } else if let Expression::Macro(input, method, s) = expr {
+                    // The only valid macro is "autoperm!"
+                    if method != "autoperm!" {
+                        return Err(Error::new_from_span(
+                            ErrorVariant::CustomError {
+                                message: format!(
+                                    "Invalid macro {}. Only `autoperm!` is supported",
+                                    method.red()
+                                )
+                                .bold()
+                                .to_string(),
+                            },
+                            (&s).into(),
+                        ));
+                    }
+
+                    // Run autoperm! algorithm on the input
+                    match autoperm::auto_perm(&input) {
+                        Ok(bf) => stack.push(Expression::Brainfuck(bf, s.clone())),
+                        Err(e) => {
+                            return Err(Error::new_from_span(
+                                ErrorVariant::CustomError {
+                                    message: format!("Error executing autoperm! macro: {}", e).bold().to_string(),
+                                },
+                                (&s).into(),
+                            ));
+                        }
+                    }
                 } else {
                     stack.push(expr.clone());
                 }
@@ -359,8 +387,10 @@ fn apply_constraints(
         match expr {
             Expression::Function(module, name, _) => {
                 // If the expression is a stack constraint then we replace it with the correct expression
-                if module.is_empty() && name.len() == 1 && let Some(constraint) = constraints.get(&name.chars().next().unwrap()) {
-                    expr = constraint;
+                if module.is_empty() && name.len() == 1 {
+                    if let Some(constraint) = constraints.get(&name.chars().next().unwrap()) {
+                        expr = constraint;
+                    }
                 }
 
                 result.push(expr.clone());

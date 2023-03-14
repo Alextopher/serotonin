@@ -1,23 +1,19 @@
 [package]
 name = "serotonin"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 
-build = "src/build.rs"
-
 [dependencies]
-pest = "^2.3.0"
-pest_derive = "^2.3"
-include_dir = "^0.7"
-clap = { version = "^3.2", features = ["cargo", "suggestions", "unicode"] }
-colored = "^2.0"
-either = "^1.8"
+pest = "2.5"
+pest_derive = "2.5"
+include_dir = "0.7"
+clap = { version = "3.2", features = ["cargo", "suggestions", "unicode"] }
+colored = "2.0"
+either = "1.8"
 bfc-ir = { git = "https://github.com/Alextopher/bfc-ir.git", branch = "master" }
 bfi = { git = "https://github.com/Alextopher/bfi.git", branch = "main" }
+autoperm = "0.1"
 
 [dev-dependencies]
-rand = "0.8.5"
-rayon = "1.5.3"
-
-[build-dependencies]
-autoperm = "0.1"
+rand = "0.8"
+rayon = "1.7"

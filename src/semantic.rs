@@ -216,7 +216,8 @@ fn qualify_expression(
                 )),
                 Err(e) => Err(vec![e]),
             }
-        }
+        },
+        Expression::Macro(_, _, _) => Ok(e.clone()),
     }
 }
 

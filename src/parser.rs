@@ -376,6 +376,22 @@ fn parse_factor_ast(pair: Pair<Rule>) -> Result<Either<Expression, Vec<Expressio
             parse_term_ast(pair.clone())?,
             pair.as_span().into(),
         ))),
+        Rule::macro_stmt => {
+            // first pair is the input
+            // second is the method
+            let mut pairs = pair.clone().into_inner();
+
+            let input = pairs.next().unwrap().as_str();
+            // remove the first and last character
+            let input = &input[1..input.len() - 1];
+            let method = pairs.next().unwrap();
+
+            Ok(Left(Expression::Macro(
+                input.to_string(),
+                method.as_str().to_string(),
+                pair.as_span().into(),
+            )))
+         }
         _ => unreachable!(),
     }
 }

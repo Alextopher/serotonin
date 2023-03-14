@@ -19,7 +19,10 @@ impl<'a> From<pest::Span<'a>> for Span {
         // In pest::Span the `input` field is hidden away in a private field and this is fighting to get it out.
         // `ptr` is valid because pest::Span ensures that `input[start]` is within the bounds of `input`
         // `s` is good because we know `ptr` was created from `input` which was a valid &str
-        let ptr = unsafe { other.as_str().as_ptr().byte_sub(other.start()) };
+        let ptr = unsafe { 
+            let ptr = other.as_str().as_ptr() as *const u8;
+            ptr.sub(other.start())
+        };
         let s = unsafe { std::str::from_utf8_unchecked(from_raw_parts(ptr, other.end() + 1)) };
 
         Span {
@@ -178,6 +181,7 @@ pub(crate) enum Expression {
     Brainfuck(String, Span),
     Function(String, String, Span),
     Quotation(Vec<Expression>, Span),
+    Macro(String, String, Span),
 }
 
 impl std::fmt::Display for Expression {
@@ -204,6 +208,9 @@ impl std::fmt::Display for Expression {
                 } else {
                     write!(f, "{}.{}", module, name)?;
                 }
+            },
+            Expression::Macro(input, method, _) => {
+                write!(f, "{{{}}} {}", input, method)?;
             }
         }
 
@@ -218,6 +225,7 @@ impl Expression {
             Expression::Quotation(_, span) => span,
             Expression::Brainfuck(_, span) => span,
             Expression::Function(_, _, span) => span,
+            Expression::Macro(_, _, span) => span,
         }
     }
 
@@ -240,6 +248,9 @@ impl Expression {
             Expression::Brainfuck(bf, _) => bf.clone(),
             Expression::Function(..) => {
                 panic!("Cannot compile function");
+            },
+            Expression::Macro(_, _, _) => {
+                panic!("Cannot compile macros here")
             }
         }
     }

@@ -43,8 +43,8 @@ good_character = { LETTER | DECIMAL_NUMBER | "*" | "+" | "-" | "_" | "!" | "/" |
 atomic = @{
     (!NUMBER ~ good_character) ~
     (good_character | DECIMAL_NUMBER)* ~
-    "."? ~
-    (good_character | DECIMAL_NUMBER)*
+    ("." ~
+    (good_character | DECIMAL_NUMBER)*)?
 }
 
 // a brainfuck block, this allows for writing code manually (at the cost of any kind of safety)
@@ -52,10 +52,18 @@ brainfuck = @{
     (">" | "<" | "+" | "-" | "." | "," | "[" | "]")*
 }
 
+// Macro input is like a string but with curly braces
+macro_input = ${ "{" ~ (!("{" | "}") ~ ANY)* ~ "}" }
+
+macro_stmt = {
+    macro_input ~ WHITESPACE* ~ atomic
+}
+
 factor = _{
     ("`" ~ brainfuck ~ "`")
     | hex_integer | integer
     | string | raw_string
+    | macro_stmt
     | ("[" ~ term ~ "]")
     | atomic
 }
