@@ -19,7 +19,7 @@ pub enum TokenizerError {
     ICEValidHexFailed(Span),
     ICEStringCouldNotBeTrimmed(Span),
     InvalidEscapeSequence(Span, UnescapeError),
-    NewlineInString(Span),
+    NewlineInString(Span, Span),
     NonAsciiString(Span, Span),
 }
 
@@ -38,7 +38,7 @@ impl TokenizerError {
             ICEValidHexFailed(_) => "I007",
             ICEStringCouldNotBeTrimmed(_) => "I008",
             InvalidEscapeSequence(_, _) => "E009",
-            NewlineInString(_) => "E010",
+            NewlineInString(_, _) => "E010",
             NonAsciiString(_, _) => "E011",
         }
     }
@@ -67,7 +67,7 @@ impl TokenizerError {
                 "Internal Compiler Error: Failed to trim a stringy type"
             }
             InvalidEscapeSequence(_, _) => "Invalid escape sequence in string.",
-            NewlineInString(_) => "Newlines are not allowed in strings.",
+            NewlineInString(_, _) => "Newlines are not allowed in strings.",
             NonAsciiString(_, _) => "Non-ASCII characters are not allowed in strings.",
         }
     }
@@ -87,12 +87,12 @@ impl From<TokenizerError> for Diagnostic<usize> {
             NegativeInteger(span, inverse) => Diagnostic::error().with_labels(vec![span
                 .primary_label(format!(
                     "Consider using the arithmetic inverse instead: {}",
-                    inverse
+                    inverse.to_string().yellow()
                 ))]),
             LargeInteger(span, modulo) => Diagnostic::error().with_labels(vec![span
                 .primary_label(format!(
-                    "Consider using the modulo operator instead: {}",
-                    modulo
+                    "Consider using the result after overflow: {}",
+                    modulo.to_string().yellow()
                 ))]),
             ICEValidIntegerFailed(span) => Diagnostic::error()
                 .with_notes(vec![ICE_NOTE.to_string()])
@@ -126,14 +126,161 @@ impl From<TokenizerError> for Diagnostic<usize> {
             InvalidEscapeSequence(span, e) => {
                 Diagnostic::error().with_labels(vec![span.primary_label(e.to_string())])
             }
-            NewlineInString(span) => Diagnostic::error().with_labels(vec![
-                span.primary_label(format!("Consider using {} instead", "\\n".yellow()))
+            NewlineInString(span, newline) => Diagnostic::error().with_labels(vec![
+                span.primary_label(format!("Consider using an escape code instead: {}", "\\n".yellow())),
+                newline.secondary_label("Newline found here"),
             ]),
             NonAsciiString(span, char) => Diagnostic::error().with_labels(vec![
-                span.primary_label("Strings with non-ascii characters are not yet supported")
+                span.primary_label("Strings with non-ascii characters are not yet supported"),
+                char.secondary_label("Non-ascii character found here"),
             ]),
         }
         .with_message(err.message())
         .with_code(err.code())
+    }
+}
+
+// Test the output of every error
+#[cfg(test)]
+mod debug {
+    use codespan_reporting::{
+        diagnostic::Diagnostic,
+        files::SimpleFiles,
+        term::{
+            self,
+            termcolor::{ColorChoice, StandardStream},
+        },
+    };
+
+    use crate::Span;
+
+    use super::TokenizerError;
+
+    fn print_error(files: SimpleFiles<&str, &str>, err: TokenizerError) {
+        let writer = StandardStream::stdout(ColorChoice::Always);
+        let config = codespan_reporting::term::Config::default();
+
+        let diagnostic: Diagnostic<usize> = err.into();
+        term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
+    }
+
+    #[test]
+    fn test_ice_empty_string_as_integer() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "This is a test file");
+
+        let err = TokenizerError::ICEEmptyStringAsInteger(Span::new(0, 0, file_id));
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_negative_integer() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "main == -10;");
+
+        let err = TokenizerError::NegativeInteger(Span::new(8, 11, file_id), 246);
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_large_integer() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "main == 300;");
+
+        let err = TokenizerError::LargeInteger(Span::new(8, 12, file_id), 44);
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_ice_valid_integer_failed() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "123");
+
+        let err = TokenizerError::ICEValidIntegerFailed(Span::new(0, 3, file_id));
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_ice_empty_string_as_hex() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "This is a test file");
+
+        let err = TokenizerError::ICEEmptyStringAsHex(Span::new(0, 0, file_id));
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_negative_hex() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "main == -0x10;");
+
+        let err = TokenizerError::NegativeHex(Span::new(8, 14, file_id), 0xF0);
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_large_hex() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "main == 0x100;");
+
+        let err = TokenizerError::LargeHex(Span::new(8, 15, file_id), 0);
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_ice_valid_hex_failed() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "0x123");
+
+        let err = TokenizerError::ICEValidHexFailed(Span::new(0, 5, file_id));
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_ice_string_could_not_be_trimmed() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "'a'");
+
+        let err = TokenizerError::ICEStringCouldNotBeTrimmed(Span::new(0, 3, file_id));
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_invalid_escape_sequence() {
+        let mut files = SimpleFiles::new();
+        let text = r#""\m""#;
+
+        let file_id = files.add("test", text);
+
+        let err = TokenizerError::InvalidEscapeSequence(
+            Span::new(9, 11, file_id),
+            snailquote::unescape(text).unwrap_err(),
+        );
+
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_newline_in_string() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "'Hello\nworld'");
+
+        let err = TokenizerError::NewlineInString(
+            Span::new(0, 13, file_id),
+            Span::new(6, 7, file_id),
+        );
+        print_error(files, err);
+    }
+
+    #[test]
+    fn test_non_ascii_string() {
+        let mut files = SimpleFiles::new();
+        let file_id = files.add("test", "'Héllo world'");
+
+        let err = TokenizerError::NonAsciiString(
+            Span::new(0, 14, file_id),
+            Span::new(1, 2, file_id),
+        );
+        print_error(files, err);
     }
 }

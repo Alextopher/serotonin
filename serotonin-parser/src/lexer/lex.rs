@@ -49,7 +49,6 @@ fn create_interned_token(
         Token::Integer => TokenData::Integer(lex_integer(slice, span)?),
         Token::HexInteger => TokenData::Integer(lex_hex(slice, span)?),
         Token::String | Token::RawString => {
-            let slice = trim(slice, span)?;
             no_newlines(slice, span)?;
             let slice = &unescape(slice, span)?;
             ascii_only(slice, span)?;
@@ -203,10 +202,12 @@ fn trim(slice: &str, span: Span) -> Result<&str, TokenizerError> {
 
 /// Validate a string does not contain any newlines
 fn no_newlines(slice: &str, span: Span) -> Result<(), TokenizerError> {
-    if slice.contains('\n') {
-        Err(TokenizerError::NewlineInString(span))
-    } else {
-        Ok(())
+    match slice.char_indices().find_map(|(i, c)| if c == '\n' { Some(i) } else { None }) {
+        Some(i) => {
+            let char: Span = Span::new(span.start() + i, span.start() + i + 1, span.file_id());
+            Err(TokenizerError::NewlineInString(span, char))
+        }
+        None => Ok(())
     }
 }
 
@@ -346,5 +347,39 @@ mod test {
             let span = Span::new(0, s.len(), 0);
             no_newlines(&s, span).unwrap_err();
         }
+    }
+
+    // While parsing a string with a newline make sure the error returns the correct span
+    #[test]
+    fn test_newline_in_string_span() {
+        let s = r#""foo
+        bar""#;
+        let mut lexer = Token::lexer(s);
+        assert_eq!(lexer.next(), Some(Token::String));
+        let span = Span::from_range(lexer.span(), 0);
+        let slice = lexer.slice();
+        assert_eq!(lexer.next(), None);
+
+        let err = no_newlines(slice, span).unwrap_err();
+        let TokenizerError::NewlineInString( string_span, newline_span ) = err else {
+            panic!("Expected a newline error");
+        };
+
+        assert_eq!(string_span, span);
+        assert_eq!(newline_span, Span::new(4, 5, 0));
+    }
+
+    // While parsing a string with a unicode character make sure the error returns the correct span
+    #[test]
+    fn test_unicode_in_string_span() {
+        let s = r#""foo🚀bar""#;
+        let mut lexer = Token::lexer(s);
+        assert_eq!(lexer.next(), Some(Token::String));
+        let span = Span::from_range(lexer.span(), 0);
+        let slice = lexer.slice();
+        assert_eq!(lexer.next(), None);
+
+        let err = ascii_only(slice, span).unwrap_err();
+        assert!(matches!(err, TokenizerError::NonAsciiString(..)));
     }
 }

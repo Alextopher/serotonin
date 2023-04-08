@@ -1,6 +1,6 @@
 use crate::{ast::Imports, Token};
 
-use super::{errors::ParseError, Parser};
+use super::{errors::{ParseError, Expectations}, Parser};
 
 impl<'a> Parser<'a> {
     pub(crate) fn optional_imports(&mut self) -> Option<Result<Imports, ParseError>> {
@@ -16,7 +16,27 @@ impl<'a> Parser<'a> {
         self.skip_trivia();
         let imports = self.sep(&[Token::Identifier]);
         self.skip_trivia();
-        let semicolon = self.expect(Token::Semicolon)?;
+        let semicolon = match self.expect(Token::Semicolon) {
+            Ok(semicolon) => semicolon,
+            Err(e) => match e {
+                ParseError::UnexpectedToken { found, .. } => {
+                    // expect semilcon or identifier
+                    let expected = Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]);
+                    return Err(ParseError::UnexpectedToken {
+                        found,
+                        expected,
+                    });
+                },
+                ParseError::UnexpectedEOF { eof, .. } => {
+                    // expect semicolon or identifier
+                    let expected = Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]);
+                    return Err(ParseError::UnexpectedEOF {
+                        eof,
+                        expected,
+                    });
+                },
+            }
+        };
 
         Ok(Imports::new(import_kw, imports, semicolon))
     }
@@ -68,9 +88,9 @@ mod tests {
         assert_eq!(imports.semicolon().text(&rodeo), ";");
     }
 
-    // Test some error reporting
+    // IMPORT statement requires a semicolon
     #[test]
-    fn test_imports_error() {
+    fn test_imports_no_semicolon() {
         let mut rodeo = Default::default();
 
         let text = "IMPORT std foo bar";
@@ -85,7 +105,47 @@ mod tests {
             err,
             ParseError::UnexpectedEOF {
                 eof: Span::new(text.len(), text.len(), 0),
-                expected: Expectations::Exactly(Token::Semicolon)
+                expected: Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]),
+            }
+        );
+    }
+
+    // IMPORT statement could be empty
+    #[test]
+    fn test_imports_no_imports() {
+        let mut rodeo = Default::default();
+
+        let text = "IMPORT ;";
+
+        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        assert!(emits.is_empty());
+
+        let mut parser = Parser::new(&tokens, 0);
+        let err = parser.required_imports().unwrap();
+
+        assert_eq!(err.imports().len(), 0);
+    }
+
+    // IMPORT must be made of identifiers
+    #[test]
+    fn test_imports_invalid_imports() {
+        let mut rodeo = Default::default();
+
+        let text = "IMPORT std foo bar 123;";
+
+        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        assert!(emits.is_empty());
+
+        let mut parser = Parser::new(&tokens, 0);
+        let err = parser.required_imports().unwrap_err();
+
+        assert_eq!(
+            err,
+            ParseError::UnexpectedToken {
+                found: tokens[8].clone(),
+                expected: Expectations::OneOf(
+                    vec![Token::Identifier, Token::Semicolon]
+                ),
             }
         );
     }

@@ -4,7 +4,7 @@ use codespan_reporting::diagnostic::Diagnostic;
 
 use crate::{InternedToken, Span, Token};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
     UnexpectedToken {
         found: Rc<InternedToken>,
@@ -41,12 +41,32 @@ impl ParseError {
 }
 
 // Expectations
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum Expectations {
     Any,
     Exactly(Token),
     OneOf(Vec<Token>),
 }
+
+impl PartialEq for Expectations {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Expectations::Any, Expectations::Any) => {
+                true
+            },
+            (Expectations::Exactly(t), Expectations::Exactly(o)) => {
+                t == o
+            },
+            (Expectations::OneOf(v), Expectations::OneOf(o)) => {
+                // The order of the tokens doesn't matter
+                v.iter().all(|t| o.contains(t)) && o.iter().all(|t| v.contains(t))
+            }
+            _ => false
+        }
+    }
+}
+
+impl Eq for Expectations {}
 
 impl Expectations {
     fn into_message(self) -> String {
