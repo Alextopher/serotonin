@@ -127,7 +127,10 @@ impl From<TokenizerError> for Diagnostic<usize> {
                 Diagnostic::error().with_labels(vec![span.primary_label(e.to_string())])
             }
             NewlineInString(span, newline) => Diagnostic::error().with_labels(vec![
-                span.primary_label(format!("Consider using an escape code instead: {}", "\\n".yellow())),
+                span.primary_label(format!(
+                    "Consider using an escape code instead: {}",
+                    "\\n".yellow()
+                )),
                 newline.secondary_label("Newline found here"),
             ]),
             NonAsciiString(span, char) => Diagnostic::error().with_labels(vec![
@@ -265,10 +268,8 @@ mod debug {
         let mut files = SimpleFiles::new();
         let file_id = files.add("test", "'Hello\nworld'");
 
-        let err = TokenizerError::NewlineInString(
-            Span::new(0, 13, file_id),
-            Span::new(6, 7, file_id),
-        );
+        let err =
+            TokenizerError::NewlineInString(Span::new(0, 13, file_id), Span::new(6, 7, file_id));
         print_error(files, err);
     }
 
@@ -277,10 +278,8 @@ mod debug {
         let mut files = SimpleFiles::new();
         let file_id = files.add("test", "'Héllo world'");
 
-        let err = TokenizerError::NonAsciiString(
-            Span::new(0, 14, file_id),
-            Span::new(1, 2, file_id),
-        );
+        let err =
+            TokenizerError::NonAsciiString(Span::new(0, 14, file_id), Span::new(1, 2, file_id));
         print_error(files, err);
     }
 }

@@ -51,17 +51,13 @@ pub enum Expectations {
 impl PartialEq for Expectations {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Expectations::Any, Expectations::Any) => {
-                true
-            },
-            (Expectations::Exactly(t), Expectations::Exactly(o)) => {
-                t == o
-            },
+            (Expectations::Any, Expectations::Any) => true,
+            (Expectations::Exactly(t), Expectations::Exactly(o)) => t == o,
             (Expectations::OneOf(v), Expectations::OneOf(o)) => {
                 // The order of the tokens doesn't matter
                 v.iter().all(|t| o.contains(t)) && o.iter().all(|t| v.contains(t))
             }
-            _ => false
+            _ => false,
         }
     }
 }

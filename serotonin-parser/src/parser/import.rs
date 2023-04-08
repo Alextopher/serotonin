@@ -1,6 +1,9 @@
 use crate::{ast::Imports, Token};
 
-use super::{errors::{ParseError, Expectations}, Parser};
+use super::{
+    errors::{Expectations, ParseError},
+    Parser,
+};
 
 impl<'a> Parser<'a> {
     pub(crate) fn optional_imports(&mut self) -> Option<Result<Imports, ParseError>> {
@@ -22,20 +25,14 @@ impl<'a> Parser<'a> {
                 ParseError::UnexpectedToken { found, .. } => {
                     // expect semilcon or identifier
                     let expected = Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]);
-                    return Err(ParseError::UnexpectedToken {
-                        found,
-                        expected,
-                    });
-                },
+                    return Err(ParseError::UnexpectedToken { found, expected });
+                }
                 ParseError::UnexpectedEOF { eof, .. } => {
                     // expect semicolon or identifier
                     let expected = Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]);
-                    return Err(ParseError::UnexpectedEOF {
-                        eof,
-                        expected,
-                    });
-                },
-            }
+                    return Err(ParseError::UnexpectedEOF { eof, expected });
+                }
+            },
         };
 
         Ok(Imports::new(import_kw, imports, semicolon))
@@ -143,9 +140,7 @@ mod tests {
             err,
             ParseError::UnexpectedToken {
                 found: tokens[8].clone(),
-                expected: Expectations::OneOf(
-                    vec![Token::Identifier, Token::Semicolon]
-                ),
+                expected: Expectations::OneOf(vec![Token::Identifier, Token::Semicolon]),
             }
         );
     }

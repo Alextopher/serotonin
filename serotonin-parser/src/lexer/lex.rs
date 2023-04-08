@@ -202,12 +202,15 @@ fn trim(slice: &str, span: Span) -> Result<&str, TokenizerError> {
 
 /// Validate a string does not contain any newlines
 fn no_newlines(slice: &str, span: Span) -> Result<(), TokenizerError> {
-    match slice.char_indices().find_map(|(i, c)| if c == '\n' { Some(i) } else { None }) {
+    match slice
+        .char_indices()
+        .find_map(|(i, c)| if c == '\n' { Some(i) } else { None })
+    {
         Some(i) => {
             let char: Span = Span::new(span.start() + i, span.start() + i + 1, span.file_id());
             Err(TokenizerError::NewlineInString(span, char))
         }
-        None => Ok(())
+        None => Ok(()),
     }
 }
 
