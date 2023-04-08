@@ -1,19 +1,6 @@
-[package]
-name = "serotonin"
-version = "0.6.0"
-edition = "2021"
-
-[dependencies]
-pest = "2.5"
-pest_derive = "2.5"
-include_dir = "0.7"
-clap = { version = "3.2", features = ["cargo", "suggestions", "unicode"] }
-colored = "2.0"
-either = "1.8"
-bfc-ir = { git = "https://github.com/Alextopher/bfc-ir.git", branch = "master" }
-bfi = { git = "https://github.com/Alextopher/bfi.git", branch = "main" }
-autoperm = "0.1"
-
-[dev-dependencies]
-rand = "0.8"
-rayon = "1.7"
+[workspace]
+members = [
+    "serotonin-parser",
+    "serotonin-semantics",
+    "serotonin",
+]

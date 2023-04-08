@@ -225,7 +225,7 @@ fn compile_body<'a>(
                     let bf = compile_body(modules, &q, constraints, builds)?;
 
                     // Push the result on the stack as a bf block
-                    stack.push(Expression::Brainfuck(bf, s.clone()))                    
+                    stack.push(Expression::Brainfuck(bf, s.clone()))
                 } else if let Expression::Macro(input, method, s) = expr {
                     // The only valid macro is "autoperm!"
                     if method != "autoperm!" {
@@ -243,12 +243,14 @@ fn compile_body<'a>(
                     }
 
                     // Run autoperm! algorithm on the input
-                    match autoperm::auto_perm(&input) {
+                    match autoperm::autoperm_bf(&input) {
                         Ok(bf) => stack.push(Expression::Brainfuck(bf, s.clone())),
                         Err(e) => {
                             return Err(Error::new_from_span(
                                 ErrorVariant::CustomError {
-                                    message: format!("Error executing autoperm! macro: {}", e).bold().to_string(),
+                                    message: format!("Error executing autoperm! macro: {}", e)
+                                        .bold()
+                                        .to_string(),
                                 },
                                 (&s).into(),
                             ));

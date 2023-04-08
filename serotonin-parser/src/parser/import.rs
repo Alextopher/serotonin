@@ -1,0 +1,92 @@
+use crate::{ast::Imports, Token};
+
+use super::{errors::ParseError, Parser};
+
+impl<'a> Parser<'a> {
+    pub(crate) fn optional_imports(&mut self) -> Option<Result<Imports, ParseError>> {
+        if self.peek_is(Token::ImportKW) {
+            Some(self.required_imports())
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn required_imports(&mut self) -> Result<Imports, ParseError> {
+        let import_kw = self.expect(Token::ImportKW)?;
+        self.skip_trivia();
+        let imports = self.sep(&[Token::Identifier]);
+        self.skip_trivia();
+        let semicolon = self.expect(Token::Semicolon)?;
+
+        Ok(Imports::new(import_kw, imports, semicolon))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{lexer, parser::errors::Expectations, Span};
+
+    use super::*;
+
+    #[test]
+    fn test_imports() {
+        let mut rodeo = Default::default();
+
+        let (tokens, emits) = lexer::lex("IMPORT std foo bar;", 0, &mut rodeo);
+        assert!(emits.is_empty());
+        let mut parser = Parser::new(&tokens, 0);
+        let imports = parser.required_imports().unwrap();
+
+        // Verify token kinds are correct
+        assert_eq!(imports.import_kw().kind(), Token::ImportKW);
+        assert_eq!(imports.imports().len(), 3);
+        assert!(imports
+            .imports()
+            .iter()
+            .all(|t| t.kind() == Token::Identifier));
+        assert_eq!(imports.semicolon().kind(), Token::Semicolon);
+
+        // Verify spans are correct
+        assert_eq!(imports.span().start(), 0);
+        assert_eq!(imports.span().end(), 19);
+        assert_eq!(imports.import_kw().span().start(), 0);
+        assert_eq!(imports.import_kw().span().end(), 6);
+        assert_eq!(imports.imports()[0].span().start(), 7);
+        assert_eq!(imports.imports()[0].span().end(), 10);
+        assert_eq!(imports.imports()[1].span().start(), 11);
+        assert_eq!(imports.imports()[1].span().end(), 14);
+        assert_eq!(imports.imports()[2].span().start(), 15);
+        assert_eq!(imports.imports()[2].span().end(), 18);
+        assert_eq!(imports.semicolon().span().start(), 18);
+        assert_eq!(imports.semicolon().span().end(), 19);
+
+        // Verify text is correct
+        assert_eq!(imports.import_kw().text(&rodeo), "IMPORT");
+        assert_eq!(imports.imports()[0].text(&rodeo), "std");
+        assert_eq!(imports.imports()[1].text(&rodeo), "foo");
+        assert_eq!(imports.imports()[2].text(&rodeo), "bar");
+        assert_eq!(imports.semicolon().text(&rodeo), ";");
+    }
+
+    // Test some error reporting
+    #[test]
+    fn test_imports_error() {
+        let mut rodeo = Default::default();
+
+        let text = "IMPORT std foo bar";
+
+        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        assert!(emits.is_empty());
+
+        let mut parser = Parser::new(&tokens, 0);
+        let err = parser.required_imports().unwrap_err();
+
+        assert_eq!(
+            err,
+            ParseError::UnexpectedEOF {
+                eof: Span::new(text.len(), text.len(), 0),
+                expected: Expectations::Exactly(Token::Semicolon)
+            }
+        );
+    }
+}

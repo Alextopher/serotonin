@@ -1,0 +1,219 @@
+##### STACK MANIPULATION #####
+# dup (a -- a a)
+dup == {a -- a a} autoperm!;
+dup (a) == a a;
+
+# dup2 (a b -- a b a b)
+dup2 == {a b -- a b a b} autoperm!;
+dup2 (a b) == a b a b;
+
+# drop (a -- )
+drop == {a -- } autoperm!;
+drop (a) == ;
+
+# drop2 (a b -- )
+drop2 == {a b -- } autoperm!;
+drop2 (a b) == ;
+
+# swap (a b -- b a)
+swap == {a b -- b a} autoperm!;
+swap (a b) == b a;
+
+# swap2 (a b c d -- c d a b)
+swap2 == {a b c d -- c d a b} autoperm!;
+swap2 (a b c d) == c d a b;
+
+# over (a b -- a b a)
+over == {a b -- a b a} autoperm!;
+over (a b) == a b a;
+
+# over2 (a b c d -- a b c d a b)
+over2 == {a b c d -- a b c d a b} autoperm!;
+over2 (a b c d) == a b c d a b;
+
+# rot (a b c -- b c a)
+rot == {a b c -- b c a} autoperm!;
+rot (a b c) == b c a;
+
+# rot2 (a b c d e f -- c d e f a b)
+rot2 == {a b c d e f -- c d e f a b} autoperm!;
+rot2 (a b c d e f) == c d e f a b;
+
+# -rot (a b c -- c a b)
+-rot == {a b c -- c a b} autoperm!;
+-rot (a b c) == c a b;
+
+# -rot2 (a b c d e f -- e f a b c d)
+-rot2 == {a b c d e f -- e f a b c d} autoperm!;
+-rot2 (a b c d e f) == e f a b c d;
+
+# nip (a b -- b)
+nip == {a b -- b} autoperm!;
+nip (a b) == b;
+
+# nip2 (a b c d -- c d)
+nip2 == {a b c d -- c d} autoperm!;
+nip2 (a b c d) == c d;
+
+# tuck (a b -- b a b)
+tuck == {a b -- b a b} autoperm!;
+tuck (a b) == b a b;
+
+# tuck2 (a b c d -- c d a b c d)
+tuck2 == {a b c d -- c d a b c d} autoperm!;
+tuck2 (a b c d) == c d a b c d;
+
+# pick ( a0 .. an n -- a0 .. an a0 )
+#pick (n) ==? '<' n dupn '[-' '>' n dupn '+>+<' '<' n dupn ']' '>' n dupn '>'
+
+# dupn (a n -- a a ... a)
+# dupn (a 0 -- )
+dupn == [] [dec over swap] while drop;
+dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' sprint;
+dupn (0) == drop drop;
+dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while sprint;
+dupn (0 n) ==! n [] [dec `>.<`] while; 
+
+# dropn (a0 .. an n -- )
+dropn == [] [dec swap drop] while;
+dropn (n) ==? n [] [dec "[-]<" spop] while;
+
+# popn (a0 .. an n -- )
+# pops n items from the stack
+popn == [] [dec swap pop] while;
+popn (n) ==? n [] [dec ".[-]<" spop] while;
+
+##### IO #####
+
+# print (a -- a)
+print == `.`;
+
+# pop (a -- )
+# prints a to stdout and then drops it
+pop == print drop;
+
+# read ( -- a)
+# read a from stdin
+read == `>,`;
+
+# readd ( -- h t o)
+# reads a decimal number from stdin
+# the number must be 3 digits long
+readd == 0 read '0' - 100 * + read '0' - 10 * + read '0' - +;
+
+# pops a number and prints it as decimal
+# (n -- )
+popd == 100 divmod 48 + pop 10 divmod 48 + pop 48 + pop;
+
+# prints a number as decimal
+# (n -- n)
+printd == dup popd;
+
+##### STRINGS #####
+
+# sdrop (s -- )
+# string drop
+# drops a null terminated string
+sdrop == `[[-]<]<`;
+
+# sprint (s -- s)
+# string print
+# prints a null terminated string
+sprint == `[<]>[.>]<`;
+
+# spop (s -- )
+# string pop
+# pops a null terminated string
+spop == sprint sdrop;
+
+# sread (-- s)
+# string read
+# input ['a', 'b', 'c', 'd'] is equivalent to 
+# f == 'abcd';
+sread == `,[>,]<`;
+
+# readuntil (c -- s)
+# read until a character c is encountered
+# c is not included in the output
+readuntil (c) == '-' c dupn '[' '+' c dupn ',' '-' c dupn ']' spop;
+
+# readln ( -- s)
+# read a line from stdin. Lines end with \n
+readln == 0 '\n' readuntil;
+
+# slen (s -- l)
+# consumes s and returns it's length
+slen == `[[-]>[-<+>]<+<]`;
+
+##### ARITHMETIC #####
+
+# inc (a -- a+1)
+inc == `+`;
+inc (a) ==! a inc pop;
+
+# dec (a -- a-1)
+dec == `-`;
+dec (a) ==! a dec pop;
+
+# + (a b -- a+b)
++ == `[-<+>]<`;
++ (b) ==? '+' b dupn sprint;
++ (a b) ==! a b + pop;
+
+# - (a b -- a-b)
+- == `[-<->]<`;
+- (b) ==? '-' b dupn sprint;
+- (a b) ==! a b - pop;
+
+# / (a b -- a/b)
+/ == divmod nip;
+
+# % (a b -- a%b)
+% == divmod drop;
+
+# divmod (n d -- n%d n/d)
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
+divmod == `<[->-[>+>>]>[+[-<+>]>+>>]<<<<<]>[-]>[-<<+>>]>[-<<+>>]<<`;
+divmod (a b) ==! a b divmod pop pop;
+
+# multiplies the two numbers on the top of the stack
+* == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
+* (b) ==? '\0[->' '+' b dupn '<]>[-<+>]<' sprint;
+* (a b) ==! a b * pop;
+
+##### LOGIC #####
+
+# booleans
+true == 1;
+false == 0;
+
+# eq (a b -- a==b)
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
+eq == `<[->-<]+>[<->[-]]<`;
+eq (a b) == false;
+eq (a a) == true;
+eq (0) == zeq;
+
+# zeq (a -- a==0)
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
+zeq == `>+<[>[-]<[-]]>[-<+>]<`;
+zeq (@) == false;
+zeq (0) == true;
+
+# not (a -- !a)
+# c-like ! operator. If a == 0 then !a == 1 otherwise !a == 0
+# credit to https://esolangs.org/wiki/Brainfuck_algorithms
+not == `>+<[[-]>-<]>[<+>-]<`;
+not (@) == false;
+not (0) == true;
+
+# neq (a b -- a != b)
+# returns 1 if a != b otherwise returns 0
+neq == eq not;
+
+##### Control Flow #####
+
+# {condition}[{body}{condition}]
+while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
+#while ([true] B) ==? '[' B ']<' sprint;
+#while ([false] ?) ==? ; # dead code elimination !

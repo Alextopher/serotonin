@@ -1,5 +1,3 @@
-IMPORT stack;
-
 ##### STACK MANIPULATION #####
 # dup (a -- a a)
 dup == {a -- a a} autoperm!;
@@ -71,7 +69,7 @@ tuck2 (a b c d) == c d a b c d;
 # dupn (a n -- a a ... a)
 # dupn (a 0 -- )
 dupn == [] [dec over swap] while drop;
-dupn (n) ==? 0 '[-' n [] [dec `[->>+<<]<` '>+' `>`] while '<' n dupn ']>[>]<[-' '<' n dupn '+' '>' n dupn ']' sprint;
+dupn (n) ==? 0 "[-" n [] [dec `[->>+<<]<` ">+" `>`] while "<" n dupn "]>[>]<[-" "<" n dupn "+" ">" n dupn "]" sprint;
 dupn (0) == drop drop;
 dupn (a n) ==! n [] [dec `[->+<]<` a `>`] while sprint;
 dupn (0 n) ==! n [] [dec `>.<`] while; 
@@ -101,7 +99,7 @@ read == `>,`;
 # readd ( -- h t o)
 # reads a decimal number from stdin
 # the number must be 3 digits long
-readd == 0 read '0' - 100 * + read '0' - 10 * + read '0' - +;
+readd == 0 read "0" - 100 * + read "0" - 10 * + read "0" - +;
 
 # pops a number and prints it as decimal
 # (n -- )
@@ -137,11 +135,11 @@ sread == `,[>,]<`;
 # readuntil (c -- s)
 # read until a character c is encountered
 # c is not included in the output
-readuntil (c) == '-' c dupn '[' '+' c dupn ',' '-' c dupn ']' spop;
+readuntil (c) == "-" c dupn "[" "+" c dupn "," "-" c dupn "]" spop;
 
 # readln ( -- s)
 # read a line from stdin. Lines end with \n
-readln == 0 '\n' readuntil;
+readln == 0 "\n" readuntil;
 
 # slen (s -- l)
 # consumes s and returns it's length
@@ -159,12 +157,12 @@ dec (a) ==! a dec pop;
 
 # + (a b -- a+b)
 + == `[-<+>]<`;
-+ (b) ==? '+' b dupn sprint;
++ (b) ==? "+" b dupn sprint;
 + (a b) ==! a b + pop;
 
 # - (a b -- a-b)
 - == `[-<->]<`;
-- (b) ==? '-' b dupn sprint;
+- (b) ==? "-" b dupn sprint;
 - (a b) ==! a b - pop;
 
 # / (a b -- a/b)
@@ -180,7 +178,7 @@ divmod (a b) ==! a b divmod pop pop;
 
 # multiplies the two numbers on the top of the stack
 * == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
-* (b) ==? '\0[->' '+' b dupn '<]>[-<+>]<' sprint;
+* (b) ==? "\0[->" "+" b dupn "<]>[-<+>]<" sprint;
 * (a b) ==! a b * pop;
 
 ##### LOGIC #####
@@ -216,4 +214,7 @@ neq == eq not;
 ##### Control Flow #####
 
 # {condition}[{body}{condition}]
-while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
+while (C B) ==? C "[" sprint B sprint C "]<" sprint; 
+#while ([true] B) ==? '[' B ']<' sprint;
+#while ([false] ?) ==? ; # dead code elimination !
+

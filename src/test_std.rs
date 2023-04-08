@@ -2,8 +2,6 @@ use bfi::TestResults;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::collections::HashMap;
 
-use crate::{compile_without_timings, config::Config, MAX_ITERATIONS};
-
 fn multiple_test(code: &str, inputs: Vec<Vec<u8>>, outputs: Vec<Vec<u8>>) {
     assert!(inputs.len() == outputs.len());
 

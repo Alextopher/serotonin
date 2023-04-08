@@ -1,5 +1,20 @@
+// allow dead code
+#[allow(dead_code)]
+#[warn(unused_assignments)]
+
+
+use ast::Print;
 use clap::{arg, command, crate_version, value_parser, Arg, ArgAction, ArgMatches};
-use serotonin::{compile, config::Config};
+use codespan_reporting::{
+    diagnostic::Severity,
+    files::SimpleFiles,
+    term::{
+        self,
+        termcolor::{ColorChoice, StandardStream},
+    },
+};
+use lasso::Rodeo;
+use lexer::{pretty, Span};
 use std::{
     borrow::Cow,
     fs,
@@ -9,6 +24,7 @@ use std::{
     process::exit,
     thread,
 };
+use syntax::SemanticState;
 
 fn compile_from_matches(matches: &ArgMatches) -> String {
     let (name, contents) = match matches.get_one::<PathBuf>("INPUTS") {
@@ -46,6 +62,60 @@ fn compile_from_matches(matches: &ArgMatches) -> String {
                     let mut contents = String::new();
                     file.read_to_string(&mut contents).unwrap();
 
+                    let mut files = SimpleFiles::new();
+                    let file_id = files.add(&name, &contents);
+
+                    let mut rodeo = Rodeo::default();
+                    let (tokens, diagnostics) = lexer::lex(&contents, file_id, &mut rodeo);
+
+                    let mut has_error = false;
+
+                    let writer = StandardStream::stderr(ColorChoice::Always);
+                    let config = codespan_reporting::term::Config::default();
+
+                    for diagnostic in diagnostics {
+                        term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
+
+                        if diagnostic.severity == Severity::Error {
+                            has_error = true;
+                        }
+                    }
+
+                    if has_error {
+                        println!("{}", pretty(&tokens, rodeo.into_reader()));
+                        exit(1);
+                    }
+
+                    // Parse the file
+                    let spur = rodeo.get_or_intern(&name.clone());
+                    let module = match parse::parse_module(
+                        &tokens,
+                        Span::new(0, contents.len(), file_id),
+                        spur,
+                    ) {
+                        Ok(m) => m,
+                        Err(err) => {
+                            term::emit(&mut writer.lock(), &config, &files, &err.into_diagnostic())
+                                .unwrap();
+                            exit(1);
+                        }
+                    };
+
+                    // we need a std::fmt::Formatter to print the AST
+                    let mut w = String::new();
+                    module.print(&mut w, &rodeo).unwrap();
+                    println!("{}", w);
+
+                    // Syntax tree
+                    let mut state = SemanticState::new(&mut rodeo);
+                    let diagnostics = state.add_module(module);
+                    for diagnostic in diagnostics {
+                        term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
+                    }
+
+                    println!();
+                    state.print_definitions();
+
                     (name, contents)
                 }
                 Err(e) => {
@@ -66,30 +136,7 @@ fn compile_from_matches(matches: &ArgMatches) -> String {
         }
     };
 
-    // Create config from command line flags
-    let config = Config::new(
-        matches.is_present("verbose"),
-        matches.is_present("timings"),
-        !matches.is_present("no optimize"),
-    );
-
-    match compile(&name, &contents, config) {
-        Ok(c) => c,
-        Err(e) => {
-            // Report errors
-            eprintln!(
-                "Failed to compile: {}. Found at least {} errors",
-                name,
-                e.len()
-            );
-
-            for error in e {
-                eprintln!("{}", error);
-            }
-
-            exit(1);
-        }
-    }
+    todo!();
 }
 
 /// The `build` subcommand

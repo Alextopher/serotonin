@@ -1,5 +1,3 @@
-use crate::{compile, Config};
-
 // equivalent("1 2 swap", "2 1");
 macro_rules! equivalent {
     ($a:expr, $b:expr) => {
