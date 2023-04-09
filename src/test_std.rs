@@ -44,7 +44,7 @@ fn multiple_test(code: &str, inputs: Vec<Vec<u8>>, outputs: Vec<Vec<u8>>) {
         Err(errors) => {
             for err in errors {
                 println!("{}", err);
-                panic!("Compliation failed");
+                panic!("Compilation failed");
             }
         }
     }

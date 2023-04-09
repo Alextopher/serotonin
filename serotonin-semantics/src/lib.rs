@@ -1,2 +1,4 @@
 mod gen;
-mod syntax;
+mod check;
+mod errors;
+

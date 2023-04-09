@@ -134,7 +134,7 @@ impl Parser<'_> {
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{BodyInner, Stack, StackArg, StackArgInner},
+        ast::{BodyInner, Stack, StackArg},
         lexer,
         parser::Parser, TokenKind,
     };
@@ -267,7 +267,7 @@ mod test {
 
         let expected_stack = Stack::new(
             tokens[2].clone(),
-            vec![StackArg::new(StackArgInner::NamedByte(tokens[3].clone()))],
+            vec![StackArg::NamedByte(tokens[3].clone())],
             tokens[4].clone(),
         );
 

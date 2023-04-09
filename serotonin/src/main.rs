@@ -34,15 +34,9 @@ enum Commands {
 fn main() {
     let args = Cli::parse();
 
-    let start = std::time::Instant::now();
-
     match args.subcommand {
         Some(Commands::Lexer { file, debug }) => debug::lex_debug(file, args.bench, debug),
         Some(Commands::Parser { file, debug }) => debug::parse_debug(file, args.bench, debug),
         None => println!("No subcommand was used"),
-    }
-
-    if args.bench {
-        println!("Time elapsed: {:?}", start.elapsed());
     }
 }

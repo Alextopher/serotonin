@@ -44,7 +44,10 @@ impl Span {
     /// Creates a new Span that goes from start of s1 to the end of s2
     ///
     /// Note: s1.end and s2.start do not have to be the same
-    pub fn merge(s1: Self, s2: Self) -> Self {
+    pub fn merge(s1: impl Into<Self>, s2: impl Into<Self>) -> Self {
+        let s1 = s1.into();
+        let s2 = s2.into();
+        
         debug_assert_eq!(s1.file_id, s2.file_id);
         Self::new(s1.start, s2.end, s1.file_id)
     }

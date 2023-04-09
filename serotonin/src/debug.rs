@@ -19,19 +19,21 @@ pub fn lex_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
             .unwrap()
             .to_string(),
     );
+    let content = std::fs::read_to_string(file).unwrap();
 
     let debug = debug.unwrap_or(false);
 
-    let content = std::fs::read_to_string(file).unwrap();
+    let start = std::time::Instant::now();
 
     let mut files = SimpleFiles::new();
-    let file_id = files.add("std", &content);
+    let file_id = files.add("std", content);
 
     let mut rodeo = lasso::Rodeo::default();
 
-    let (tokens, errors) = lex(&content, file_id, &mut rodeo);
+    let (tokens, errors) = lex(files.get(file_id).unwrap().source(), file_id, &mut rodeo);
 
     if bench {
+        println!("Lexing took {:?}", start.elapsed());
         return;
     }
 
@@ -82,7 +84,7 @@ fn pretty_print(tokens: &[Token], reader: &RodeoReader) -> String {
                         .to_string(),
                 });
             }
-            TokenData::Integer(num) => {
+            TokenData::Byte(num) => {
                 // print out the number in blue using the colored crate
                 out.push_str(&format!("{}", num.to_string().purple()));
             }
@@ -131,18 +133,18 @@ pub fn parse_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
             .to_string(),
     );
 
+    let content = std::fs::read_to_string(file).unwrap();
+    let len = content.len();
+    
+    let start = std::time::Instant::now();
     let debug = debug.unwrap_or(false);
 
-    let content = std::fs::read_to_string(file).unwrap();
-
     let mut files = SimpleFiles::new();
-    let file_id = files.add("std", &content);
-    // create a span over the whole file
-    let span = Span::from_range(0..content.len(), file_id);
+    let file_id = files.add("std", content);
 
     let mut rodeo = lasso::Rodeo::default();
 
-    let (tokens, errors) = lex(&content, file_id, &mut rodeo);
+    let (tokens, errors) = lex(files.get(file_id).unwrap().source(), file_id, &mut rodeo);
 
     // Emit errors
     let writer = StandardStream::stderr(ColorChoice::Always);
@@ -158,9 +160,10 @@ pub fn parse_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
     }
 
     // Parse
-    match parse_module(&tokens, span, rodeo.get_or_intern("std")) {
+    match parse_module(&tokens, file_id, rodeo.get_or_intern("std")) {
         Ok((module, warnings)) => {
             if bench {
+                println!("Parsing took {:?}", start.elapsed());
                 return;
             }
 

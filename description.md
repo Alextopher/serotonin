@@ -1,4 +1,4 @@
-# Langauge Description
+# Language Description
 
 Serotonin is a _toy_ stacked-based programming language designed to compile to Brainfuck. It is inspired by Joy and I attempt to take advantage of the happiness you find in declarative programming languages in the Brainfuck world. In contrast to that idea, I am not interested in hiding away the details of Brainfuck, both languages are very limiting.
 
@@ -45,7 +45,7 @@ This is a series of stack functions. Which is to say each function takes as inpu
 -- 3
 ```
 
-Where the left-hand side of the `--` are the elements _poped_ from the stack and the right-hand side are the elements _pushed_ to the stack. You could think of this as the left having operands and the right having results. So addition could be `a b -- a+b`, where it takes 2 elements off that stack, the two terms, and it returns the sum.
+Where the left-hand side of the `--` are the elements _pop'd_ from the stack and the right-hand side are the elements _pushed_ to the stack. You could think of this as the left having operands and the right having results. So addition could be `a b -- a+b`, where it takes 2 elements off that stack, the two terms, and it returns the sum.
 
 To simplify this expression we only need to repeatedly execute each instruction.
 
@@ -80,7 +80,7 @@ In Serotonin, there are 3 kinds of rewriting rules. A single term can have multi
 
 | Rewrite | symbol | meaning |
 |:------|:--------|:---------|
-| Subsitution | `==` | Replaces the term on the left with the terms on the right.
+| Substitution | `==` | Replaces the term on the left with the terms on the right.
 | Generation | `==?` | Executes the right-hand side, then replaces the left with the result treated as a Brainfuck block.
 | Execution | `==!` | Executes the right-hand side, then replaces the left with the result treated as constant bytes.
 
@@ -88,12 +88,12 @@ For example, the standard library addition function has the following rewrite ru
 
 ```text
 # + (a b -- a+b)
-+ == `[-<+>]<`; # Subsitution
++ == `[-<+>]<`; # Substitution
 + (b) ==? '+' b dupn sprint; # Generation
 + (a b) ==! a b + pop; # Execution
 ```
 
-### Subsitution
+### Substitution
 
 The first rewrite rule for addition is the most generalized form. It always works even if we don't know anything about the operands. This program would use substitution:
 
@@ -109,7 +109,7 @@ dup == `[->>+<<]>>[-<+<+>>]<`;
 dup (a) == a a;
 ```
 
-So this program `main == 10 dup + print;` could be rewriten as `main == 10 10 + print;`. Which generates faster code (at the expense of code size).
+So this program `main == 10 dup + print;` could be rewritten as `main == 10 10 + print;`. Which generates faster code (at the expense of code size).
 
 ### Generation
 

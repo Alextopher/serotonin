@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Stack, StackArg, StackArgInner},
+    ast::{Stack, StackArg},
     Span, TokenKind,
 };
 
@@ -48,25 +48,25 @@ impl<'a> Parser<'a> {
         })?;
 
         match next.kind() {
-            TokenKind::UnnamedByte => Ok(StackArg::new(StackArgInner::UnnamedByte(
+            TokenKind::UnnamedByte => Ok(StackArg::UnnamedByte(
                 self.next().unwrap(),
-            ))),
-            TokenKind::UnnamedQuotation => Ok(StackArg::new(StackArgInner::UnnamedQuotation(
+            )),
+            TokenKind::UnnamedQuotation => Ok(StackArg::UnnamedQuotation(
                 self.next().unwrap(),
-            ))),
-            TokenKind::NamedByte => Ok(StackArg::new(StackArgInner::NamedByte(
+            )),
+            TokenKind::NamedByte => Ok(StackArg::NamedByte(
                 self.next().unwrap(),
-            ))),
-            TokenKind::NamedQuotation => Ok(StackArg::new(StackArgInner::NamedQuotation(
+            )),
+            TokenKind::NamedQuotation => Ok(StackArg::NamedQuotation(
                 self.next().unwrap(),
-            ))),
-            TokenKind::Integer => Ok(StackArg::new(StackArgInner::Integer(self.next().unwrap()))),
+            )),
+            TokenKind::Integer => Ok(StackArg::Integer(self.next().unwrap())),
             TokenKind::HexInteger => {
-                Ok(StackArg::new(StackArgInner::Integer(self.next().unwrap())))
+                Ok(StackArg::Integer(self.next().unwrap()))
             }
-            TokenKind::LBracket => Ok(StackArg::new(StackArgInner::Quotation(
+            TokenKind::LBracket => Ok(StackArg::Quotation(
                 self.parse_quotation()?,
-            ))),
+            )),
             _ => Err(ParseError::UnexpectedToken {
                 found: next,
                 expected,
@@ -80,7 +80,7 @@ mod tests {
     use lasso::Rodeo;
 
     use crate::{
-        ast::{Body, BodyInner, Quotation, StackArgInner},
+        ast::{Body, BodyInner, Quotation, StackArg},
         lexer,
         parser::Parser,
         Span, TokenKind,
@@ -99,16 +99,16 @@ mod tests {
         assert_eq!(stack.l_paren().kind(), TokenKind::LParen);
         assert_eq!(stack.args().len(), 3);
         assert_eq!(
-            stack.args()[0].inner(),
-            &StackArgInner::NamedByte(tokens[1].clone())
+            stack.args()[0],
+            StackArg::NamedByte(tokens[1].clone())
         );
         assert_eq!(
-            stack.args()[1].inner(),
-            &StackArgInner::NamedByte(tokens[3].clone())
+            stack.args()[1],
+            StackArg::NamedByte(tokens[3].clone())
         );
         assert_eq!(
-            stack.args()[2].inner(),
-            &StackArgInner::NamedByte(tokens[5].clone())
+            stack.args()[2],
+            StackArg::NamedByte(tokens[5].clone())
         );
         assert_eq!(stack.r_paren().kind(), TokenKind::RParen);
 
@@ -135,20 +135,20 @@ mod tests {
         assert_eq!(stack.l_paren().kind(), TokenKind::LParen);
         assert_eq!(stack.args().len(), 6);
         assert_eq!(
-            stack.args()[0].inner(),
-            &StackArgInner::NamedByte(tokens[1].clone())
+            stack.args()[0],
+            StackArg::NamedByte(tokens[1].clone())
         );
         assert_eq!(
-            stack.args()[1].inner(),
-            &StackArgInner::Integer(tokens[3].clone())
+            stack.args()[1],
+            StackArg::Integer(tokens[3].clone())
         );
         assert_eq!(
-            stack.args()[2].inner(),
-            &StackArgInner::UnnamedByte(tokens[5].clone())
+            stack.args()[2],
+            StackArg::UnnamedByte(tokens[5].clone())
         );
         assert_eq!(
-            stack.args()[3].inner(),
-            &StackArgInner::NamedQuotation(tokens[7].clone())
+            stack.args()[3],
+            StackArg::NamedQuotation(tokens[7].clone())
         );
         let quotation = Quotation::new(
             tokens[9].clone(),
@@ -159,12 +159,12 @@ mod tests {
             tokens[11].clone(),
         );
         assert_eq!(
-            stack.args()[4].inner(),
-            &StackArgInner::Quotation(quotation)
+            stack.args()[4].as_quotation().unwrap(),
+            &quotation
         );
         assert_eq!(
-            stack.args()[5].inner(),
-            &StackArgInner::UnnamedQuotation(tokens[13].clone())
+            stack.args()[5],
+            StackArg::UnnamedQuotation(tokens[13].clone())
         );
     }
 }

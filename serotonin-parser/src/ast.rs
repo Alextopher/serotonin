@@ -6,7 +6,6 @@ use crate::TokenKind;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Module {
-    span: Span,
     name: Spur,
     imports: Option<Imports>,
     definitions: Vec<Definition>,
@@ -17,18 +16,12 @@ impl Module {
         name: Spur,
         imports: Option<Imports>,
         definitions: Vec<Definition>,
-        span: Span,
     ) -> Self {
         Self {
-            span,
             name,
             imports,
             definitions,
         }
-    }
-
-    pub fn span(&self) -> Span {
-        self.span
     }
 
     pub fn name(&self) -> Spur {
@@ -46,7 +39,6 @@ impl Module {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Imports {
-    span: Span,
     import_kw: Token,    // Must be a ImportKW
     imports: Vec<Token>, // Must be Identifiers
     semicolon: Token,
@@ -58,7 +50,6 @@ impl Imports {
         debug_assert!(imports.iter().all(|t| t.kind() == TokenKind::Identifier));
 
         Self {
-            span: Span::merge(import_kw.span(), semicolon.span()),
             import_kw,
             imports,
             semicolon,
@@ -66,7 +57,7 @@ impl Imports {
     }
 
     pub fn span(&self) -> Span {
-        self.span
+        Span::merge(self.import_kw.span(), self.semicolon.span())
     }
 
     pub fn import_kw(&self) -> Token {
@@ -85,7 +76,6 @@ impl Imports {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Definition {
-    span: Span,
     name: Token, // Must be an identifier
     stack: Option<Stack>,
     kind: Token, // Must be Substitution, Generation, or Execution
@@ -112,7 +102,6 @@ impl Definition {
         debug_assert_eq!(semicolon.kind(), TokenKind::Semicolon);
 
         Self {
-            span: Span::merge(name.span(), semicolon.span()),
             name,
             stack,
             kind,
@@ -122,7 +111,7 @@ impl Definition {
     }
 
     pub fn span(&self) -> Span {
-        self.span
+        Span::merge(self.name.span(), self.semicolon.span())
     }
 
     pub fn name(&self) -> Token {
@@ -149,7 +138,6 @@ impl Definition {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Stack {
-    span: Span,
     l_paren: Token, // Must be LParen
     args: Vec<StackArg>,
     r_paren: Token, // Must be RParen
@@ -161,7 +149,6 @@ impl Stack {
         debug_assert_eq!(r_paren.kind(), TokenKind::RParen);
 
         Self {
-            span: Span::merge(l_paren.span(), r_paren.span()),
             l_paren,
             r_paren,
             args,
@@ -169,7 +156,7 @@ impl Stack {
     }
 
     pub fn span(&self) -> Span {
-        self.span
+        Span::merge(self.l_paren.span(), self.r_paren.span())
     }
 
     pub fn l_paren(&self) -> Token {
@@ -187,30 +174,7 @@ impl Stack {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StackArg {
-    span: Span,
-    inner: StackArgInner,
-}
-
-impl StackArg {
-    pub fn new(inner: StackArgInner) -> Self {
-        Self {
-            span: inner.span(),
-            inner,
-        }
-    }
-
-    pub fn span(&self) -> Span {
-        self.span
-    }
-
-    pub fn inner(&self) -> &StackArgInner {
-        &self.inner
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum StackArgInner {
+pub enum StackArg {
     UnnamedByte(Token),      // Must be an UnnamedByte
     UnnamedQuotation(Token), // Must be an UnnamedQuotation
     NamedByte(Token),        // Must be a NamedByte
@@ -219,34 +183,25 @@ pub enum StackArgInner {
     Quotation(Quotation),
 }
 
-impl From<StackArgInner> for StackArg {
-    fn from(val: StackArgInner) -> Self {
-        StackArg {
-            span: val.span(),
-            inner: val,
-        }
-    }
-}
-
-impl StackArgInner {
+impl StackArg {
     pub fn span(&self) -> Span {
         match self {
-            StackArgInner::UnnamedByte(token)
-            | StackArgInner::UnnamedQuotation(token)
-            | StackArgInner::NamedByte(token)
-            | StackArgInner::NamedQuotation(token)
-            | StackArgInner::Integer(token) => token.span(),
-            StackArgInner::Quotation(quotation) => quotation.span,
+            StackArg::UnnamedByte(token)
+            | StackArg::UnnamedQuotation(token)
+            | StackArg::NamedByte(token)
+            | StackArg::NamedQuotation(token)
+            | StackArg::Integer(token) => token.span(),
+            StackArg::Quotation(quotation) => quotation.span(),
         }
     }
 
     pub fn is_quotation(&self) -> bool {
-        matches!(self, StackArgInner::Quotation(_))
+        matches!(self, StackArg::Quotation(_))
     }
 
     pub fn as_quotation(&self) -> Option<&Quotation> {
         match self {
-            StackArgInner::Quotation(quotation) => Some(quotation),
+            StackArg::Quotation(quotation) => Some(quotation),
             _ => None,
         }
     }
@@ -254,7 +209,6 @@ impl StackArgInner {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Quotation {
-    span: Span,
     l_bracket: Token, // Must be LBracket
     body: Body,
     r_bracket: Token, // Must be RBracket
@@ -266,7 +220,6 @@ impl Quotation {
         debug_assert_eq!(r_bracket.kind(), TokenKind::RBracket);
 
         Self {
-            span: Span::merge(l_bracket.span(), r_bracket.span()),
             l_bracket,
             body,
             r_bracket,
@@ -274,7 +227,7 @@ impl Quotation {
     }
 
     pub fn span(&self) -> Span {
-        self.span
+        Span::merge(self.l_bracket().span(), self.r_bracket().span())
     }
 
     pub fn l_bracket(&self) -> Token {
@@ -290,16 +243,30 @@ impl Quotation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Body {
+    // The span of a body can not generally be created by merging the spans of its tokens
+    // It should span from the first character pass the initializer to the last character before the terminator
     span: Span,
     // Must be an atomic token or a quotation
     tokens: Vec<BodyInner>,
 }
 
+impl PartialEq for Body {
+    fn eq(&self, other: &Self) -> bool {
+        self.tokens == other.tokens
+    }
+}
+
+impl Eq for Body {}
+
+impl std::hash::Hash for Body {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.tokens.hash(state);
+    }
+}
+
 impl Body {
-    // The span of the body should not include brackets / other terminators
-    // It can not generally be created by merging the spans of its tokens
     pub fn new(span: Span, tokens: Vec<BodyInner>) -> Self {
         Self { span, tokens }
     }

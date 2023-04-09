@@ -2,31 +2,50 @@
 //!
 //! Since the language is so simple a lexer can almost completely parse the language.
 //! The only thing that can not be handled by the lexer is nested quotations.
-use std::{ops::Range, rc::Rc};
+use std::ops::Range;
 
 use lasso::Rodeo;
 use logos::Logos;
 use num::{BigInt, ToPrimitive};
 
-use crate::{Span, Token, InternedToken};
+use crate::{Span, InternedToken};
 
 use super::{
     token::{TokenData, TokenKind},
-    TokenizerError,
+    TokenizerError, Token,
 };
 
 pub fn lex(input: &str, file_id: usize, rodeo: &mut Rodeo) -> (Vec<Token>, Vec<TokenizerError>) {
-    let mut tokens = Vec::new();
+    let mut interned_tokens = Vec::new();
     let mut diagnostics = Vec::new();
 
+    // Time creating tokens
+
+    let start = std::time::Instant::now();
     for (token, range) in TokenKind::lexer(input).spanned() {
         let slice = &input[range.clone()];
 
         match create_interned_token(token, range, slice, file_id, rodeo) {
-            Ok(token) => tokens.push(Rc::new(token)),
+            Ok(token) => interned_tokens.push(token),
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
+
+    println!("Lexing took {:?}", start.elapsed());
+
+    let start = std::time::Instant::now();
+    let leaked = interned_tokens.leak();
+
+    let tokens = leaked
+        .iter()
+        .enumerate()
+        .map(|(index, _)| Token {
+            tokens: leaked,
+            index,
+        })
+        .collect();
+
+    println!("Creating tokens took {:?}", start.elapsed());
 
     (tokens, diagnostics)
 }
@@ -42,8 +61,8 @@ fn create_interned_token(
     let span = Span::from_range(range, file_id);
 
     let data: TokenData = match token {
-        TokenKind::Integer => TokenData::Integer(lex_integer(slice, span)?),
-        TokenKind::HexInteger => TokenData::Integer(lex_hex(slice, span)?),
+        TokenKind::Integer => TokenData::Byte(lex_integer(slice, span)?),
+        TokenKind::HexInteger => TokenData::Byte(lex_hex(slice, span)?),
         TokenKind::String | TokenKind::RawString => {
             no_newlines(slice, span)?;
             let slice = &unescape(slice, span)?;

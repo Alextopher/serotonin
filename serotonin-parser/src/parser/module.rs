@@ -1,11 +1,11 @@
 use lasso::Spur;
 
-use crate::{ast::Module, Span};
+use crate::ast::Module;
 
 use super::{errors::ParseError, Parser};
 
 impl<'a> Parser<'a> {
-    pub(crate) fn parse_module(&mut self, span: Span, name: Spur) -> Result<Module, ParseError> {
+    pub(crate) fn parse_module(&mut self, name: Spur) -> Result<Module, ParseError> {
         self.skip_trivia();
         let imports = self.optional_imports();
         let imports = match imports {
@@ -24,6 +24,6 @@ impl<'a> Parser<'a> {
             definitions.push(self.parse_definition()?);
         }
 
-        Ok(Module::new(name, imports, definitions, span))
+        Ok(Module::new(name, imports, definitions))
     }
 }

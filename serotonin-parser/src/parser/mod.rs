@@ -21,17 +21,11 @@ use self::errors::Expectations;
 /// Requires the module name and span to be passed as additional arguments
 pub fn parse_module(
     tokens: &[Token],
-    span: Span,
+    file_id: usize,
     name: Spur,
 ) -> Result<(Module, Vec<Diagnostic<usize>>), ParseError> {
-    debug_assert_eq!(
-        span.start(),
-        0,
-        "Modules must start at the beginning of the file"
-    );
-
-    let mut parser = Parser::new(tokens, span.file_id());
-    Ok((parser.parse_module(span, name)?, parser.emits))
+    let mut parser = Parser::new(tokens, file_id);
+    Ok((parser.parse_module(name)?, parser.emits))
 }
 
 // Parses a single definition. This is helpful for testing

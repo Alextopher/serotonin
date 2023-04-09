@@ -131,7 +131,7 @@ fn compile_body<'a>(
                                 stack.truncate(stack.len() - def.stack_size());
                             }
                             DefinitionType::ConstantComposition => {
-                                // Compile the definition with replacing constraints with thier values
+                                // Compile the definition with replacing constraints with their values
                                 let bf = compile(modules, def, new_constraints, builds)?;
 
                                 // Remove the pattern from the stack
@@ -168,7 +168,7 @@ fn compile_body<'a>(
                                 }
                             }
                             DefinitionType::Composition => {
-                                // Compile the definition with replacing constraints with thier values
+                                // Compile the definition with replacing constraints with their values
                                 let bf = compile(modules, def, new_constraints, builds)?;
 
                                 // Remove the pattern from the stack

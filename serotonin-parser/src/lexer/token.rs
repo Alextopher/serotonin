@@ -6,17 +6,38 @@ use crate::Span;
 /// A token that has been interned and has a span.
 /// 
 /// Note: InternedToken does not implement `Clone` because it is not intended to be cloned.
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub struct InternedToken {
     kind: TokenKind,
     span: Span,
-    spur: Spur,
-    data: TokenData,
+    spur: Spur, // The interned string
+    data: TokenData, // Additional data for some tokens
 }
 
-impl PartialEq<TokenKind> for InternedToken {
-    fn eq(&self, other: &TokenKind) -> bool {
-        self.kind == *other
+impl PartialEq for InternedToken {
+    fn eq(&self, other: &Self) -> bool {
+        // A hex literal and decimal literal equal if they have the same value
+        match (self.kind(), other.kind()) {
+            (TokenKind::HexInteger, TokenKind::Integer) => {
+                self.data.unwrap_byte() == other.data.unwrap_byte()
+            }
+            (TokenKind::Integer, TokenKind::HexInteger) => {
+                self.data.unwrap_byte() == other.data.unwrap_byte()
+            }
+            _ => {
+                debug_assert!(self.kind == other.kind);
+                self.spur == other.spur
+            }
+        }
+    }
+}
+
+impl Eq for InternedToken {}
+
+impl std::hash::Hash for InternedToken {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.kind.hash(state);
+        self.spur.hash(state);
     }
 }
 
@@ -191,7 +212,7 @@ impl TokenKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenData {
     None,
-    Integer(u8),
+    Byte(u8),
     String(Spur),
 }
 
@@ -200,39 +221,25 @@ impl TokenData {
         matches!(self, TokenData::None)
     }
 
-    pub fn is_integer(&self) -> bool {
-        matches!(self, TokenData::Integer(_))
+    pub fn is_byte(&self) -> bool {
+        matches!(self, TokenData::Byte(_))
     }
 
     pub fn is_string(&self) -> bool {
         matches!(self, TokenData::String(_))
     }
 
-    pub fn unwrap_integer(self) -> u8 {
+    pub fn unwrap_byte(&self) -> u8 {
         match self {
-            TokenData::Integer(i) => i,
+            TokenData::Byte(i) => *i,
             _ => panic!("Called TokenData::unwrap_integer on a non-integer"),
         }
     }
 
-    pub fn unwrap_string(self) -> Spur {
+    pub fn unwrap_string(&self) -> Spur {
         match self {
-            TokenData::String(s) => s,
+            TokenData::String(s) => *s,
             _ => panic!("Called TokenData::unwrap_string on a non-string"),
-        }
-    }
-
-    pub fn try_unwrap_integer(&self) -> Option<u8> {
-        match self {
-            TokenData::Integer(i) => Some(*i),
-            _ => None,
-        }
-    }
-
-    pub fn try_unwrap_string(&self) -> Option<Spur> {
-        match self {
-            TokenData::String(s) => Some(*s),
-            _ => None,
         }
     }
 }
