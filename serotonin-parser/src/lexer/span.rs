@@ -8,7 +8,7 @@ use codespan_reporting::diagnostic::Label;
 /// Through the [`Span::primary_label`] and [`Span::secondary_label`] methods,
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
-    start: usize, // TODO: benchmark the performance using u32 instead of usize
+    start: usize,
     end: usize,
     file_id: usize,
 }
@@ -42,6 +42,8 @@ impl Span {
     }
 
     /// Creates a new Span that goes from start of s1 to the end of s2
+    ///
+    /// Note: s1.end and s2.start do not have to be the same
     pub fn merge(s1: Self, s2: Self) -> Self {
         debug_assert_eq!(s1.file_id, s2.file_id);
         Self::new(s1.start, s2.end, s1.file_id)
@@ -65,5 +67,19 @@ impl Span {
     /// Returns the file id of the span
     pub fn file_id(&self) -> usize {
         self.file_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_span_merge() {
+        let s1 = Span::new(0, 10, 0);
+        let s2 = Span::new(20, 30, 0);
+        let s3 = Span::new(0, 30, 0);
+
+        assert_eq!(Span::merge(s1, s2), s3);
     }
 }

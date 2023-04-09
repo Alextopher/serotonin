@@ -1,17 +1,10 @@
 /// This module contains a typed Abstract Syntax Tree for the serotonin language
-use std::fmt::Write;
+use lasso::Spur;
 
-use either::Either;
-use lasso::{Rodeo, Spur};
+use crate::{Span, Token};
+use crate::TokenKind;
 
-use crate::Span;
-use crate::{Token, TokenType};
-
-pub(crate) trait Print {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Module {
     span: Span,
     name: Spur,
@@ -51,30 +44,18 @@ impl Module {
     }
 }
 
-impl Print for Module {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result {
-        writeln!(f, "Module: {}", rodeo.resolve(&self.name))?;
-
-        for definition in &self.definitions {
-            definition.print(f, rodeo)?;
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Imports {
     span: Span,
-    import_kw: TokenType,    // Must be a ImportKW
-    imports: Vec<TokenType>, // Must be Identifiers
-    semicolon: TokenType,
+    import_kw: Token,    // Must be a ImportKW
+    imports: Vec<Token>, // Must be Identifiers
+    semicolon: Token,
 }
 
 impl Imports {
-    pub fn new(import_kw: TokenType, imports: Vec<TokenType>, semicolon: TokenType) -> Self {
-        debug_assert_eq!(import_kw.kind(), Token::ImportKW);
-        debug_assert!(imports.iter().all(|t| t.kind() == Token::Identifier));
+    pub fn new(import_kw: Token, imports: Vec<Token>, semicolon: Token) -> Self {
+        debug_assert_eq!(import_kw.kind(), TokenKind::ImportKW);
+        debug_assert!(imports.iter().all(|t| t.kind() == TokenKind::Identifier));
 
         Self {
             span: Span::merge(import_kw.span(), semicolon.span()),
@@ -88,59 +69,47 @@ impl Imports {
         self.span
     }
 
-    pub fn import_kw(&self) -> TokenType {
+    pub fn import_kw(&self) -> Token {
         self.import_kw.clone()
     }
 
-    pub fn imports(&self) -> &[TokenType] {
+    pub fn imports(&self) -> &[Token] {
         &self.imports
     }
 
-    pub fn semicolon(&self) -> TokenType {
+    pub fn semicolon(&self) -> Token {
         self.semicolon.clone()
     }
 }
 
-impl Print for Imports {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result {
-        write!(f, "IMPORT ")?;
-        for (i, import) in self.imports.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{}", rodeo.resolve(&import.spur()))?;
-        }
-        write!(f, ";")
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Definition {
     span: Span,
-    name: TokenType, // Must be an identifier
+    name: Token, // Must be an identifier
     stack: Option<Stack>,
-    kind: TokenType, // Must be Substitution, Generation, or Execution
+    kind: Token, // Must be Substitution, Generation, or Execution
     body: Body,
-    semicolon: TokenType, // Must be a Semicolon
+    semicolon: Token, // Must be a Semicolon
 }
 
 impl Definition {
     pub fn new(
-        name: TokenType,
+        name: Token,
         stack: Option<Stack>,
-        kind: TokenType,
+        kind: Token,
         body: Body,
-        semicolon: TokenType,
+        semicolon: Token,
     ) -> Self {
         // name must be an identifier
-        debug_assert_eq!(name.kind(), Token::Identifier);
+        debug_assert_eq!(name.kind(), TokenKind::Identifier);
         // kind must be Substitution, Generation, or Execution
         debug_assert!(matches!(
             kind.kind(),
-            Token::Substitution | Token::Generation | Token::Execution
+            TokenKind::Substitution | TokenKind::Generation | TokenKind::Execution
         ));
         // semi must be a Semicolon
-        debug_assert_eq!(semicolon.kind(), Token::Semicolon);
+        debug_assert_eq!(semicolon.kind(), TokenKind::Semicolon);
 
         Self {
             span: Span::merge(name.span(), semicolon.span()),
@@ -156,52 +125,40 @@ impl Definition {
         self.span
     }
 
-    pub fn name(&self) -> &TokenType {
-        &self.name
+    pub fn name(&self) -> Token {
+        self.name.clone()
     }
 
     pub fn stack(&self) -> Option<&Stack> {
         self.stack.as_ref()
     }
 
-    pub fn kind(&self) -> &TokenType {
-        &self.kind
+    pub fn kind(&self) -> Token {
+        self.kind.clone()
     }
 
     pub fn body(&self) -> &Body {
         &self.body
     }
 
-    pub fn semicolon(&self) -> &TokenType {
-        &self.semicolon
+    pub fn semicolon(&self) -> Token {
+        self.semicolon.clone()
     }
 }
 
-impl Print for Definition {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result {
-        write!(f, "{} ", rodeo.resolve(&self.name.spur()))?;
-        if let Some(stack) = &self.stack {
-            stack.print(f, rodeo)?;
-            write!(f, " ")?;
-        }
-        write!(f, "{} ", rodeo.resolve(&self.kind.spur()))?;
-        self.body.print(f, rodeo)?;
-        writeln!(f, ";")
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Stack {
     span: Span,
-    l_paren: TokenType, // Must be LParen
+    l_paren: Token, // Must be LParen
     args: Vec<StackArg>,
-    r_paren: TokenType, // Must be RParen
+    r_paren: Token, // Must be RParen
 }
 
 impl Stack {
-    pub fn new(l_paren: TokenType, args: Vec<StackArg>, r_paren: TokenType) -> Self {
-        debug_assert_eq!(l_paren.kind(), Token::LParen);
-        debug_assert_eq!(r_paren.kind(), Token::RParen);
+    pub fn new(l_paren: Token, args: Vec<StackArg>, r_paren: Token) -> Self {
+        debug_assert_eq!(l_paren.kind(), TokenKind::LParen);
+        debug_assert_eq!(r_paren.kind(), TokenKind::RParen);
 
         Self {
             span: Span::merge(l_paren.span(), r_paren.span()),
@@ -215,31 +172,19 @@ impl Stack {
         self.span
     }
 
-    pub fn l_paren(&self) -> &TokenType {
-        &self.l_paren
+    pub fn l_paren(&self) -> Token {
+        self.l_paren.clone()
     }
 
     pub fn args(&self) -> &[StackArg] {
         &self.args
     }
 
-    pub fn r_paren(&self) -> &TokenType {
-        &self.r_paren
+    pub fn r_paren(&self) -> Token {
+        self.r_paren.clone()
     }
 }
 
-impl Print for Stack {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result {
-        write!(f, "(")?;
-        for (i, arg) in self.args.iter().enumerate() {
-            if i > 0 {
-                write!(f, " ")?;
-            }
-            arg.print(f, rodeo)?;
-        }
-        write!(f, ")")
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StackArg {
@@ -248,35 +193,10 @@ pub struct StackArg {
 }
 
 impl StackArg {
-    pub fn new(inner: Either<TokenType, Quotation>) -> Self {
-        match inner {
-            Either::Left(token) => {
-                debug_assert!(matches!(
-                    token.kind(),
-                    Token::UnnamedByte
-                        | Token::UnnamedQuotation
-                        | Token::NamedByte
-                        | Token::NamedQuotation
-                        | Token::Integer
-                        | Token::HexInteger
-                ));
-
-                StackArg {
-                    span: token.span(),
-                    inner: match token.kind() {
-                        Token::UnnamedByte => StackArgInner::UnnamedByte(token),
-                        Token::UnnamedQuotation => StackArgInner::UnnamedQuotation(token),
-                        Token::NamedByte => StackArgInner::NamedByte(token),
-                        Token::NamedQuotation => StackArgInner::NamedQuotation(token),
-                        Token::Integer | Token::HexInteger => StackArgInner::Integer(token),
-                        _ => unreachable!(),
-                    },
-                }
-            }
-            Either::Right(quotation) => StackArg {
-                span: quotation.span,
-                inner: StackArgInner::Quotation(quotation),
-            },
+    pub fn new(inner: StackArgInner) -> Self {
+        Self {
+            span: inner.span(),
+            inner,
         }
     }
 
@@ -287,39 +207,15 @@ impl StackArg {
     pub fn inner(&self) -> &StackArgInner {
         &self.inner
     }
-
-    pub fn text(&self, rodeo: &Rodeo) -> String {
-        match &self.inner {
-            StackArgInner::UnnamedByte(token)
-            | StackArgInner::UnnamedQuotation(token)
-            | StackArgInner::NamedByte(token)
-            | StackArgInner::NamedQuotation(token)
-            | StackArgInner::Integer(token) => rodeo.resolve(&token.spur()).to_string(),
-            StackArgInner::Quotation(quotation) => quotation.text(rodeo),
-        }
-    }
-}
-
-impl Print for StackArg {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result {
-        match &self.inner {
-            StackArgInner::UnnamedByte(token)
-            | StackArgInner::UnnamedQuotation(token)
-            | StackArgInner::NamedByte(token)
-            | StackArgInner::NamedQuotation(token)
-            | StackArgInner::Integer(token) => write!(f, "{}", rodeo.resolve(&token.spur())),
-            StackArgInner::Quotation(quotation) => quotation.print(f, rodeo),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StackArgInner {
-    UnnamedByte(TokenType),      // Must be an UnnamedByte
-    UnnamedQuotation(TokenType), // Must be an UnnamedQuotation
-    NamedByte(TokenType),        // Must be a NamedByte
-    NamedQuotation(TokenType),   // Must be a NamedQuotation
-    Integer(TokenType),          // Must be an Integer or HexInteger
+    UnnamedByte(Token),      // Must be an UnnamedByte
+    UnnamedQuotation(Token), // Must be an UnnamedQuotation
+    NamedByte(Token),        // Must be a NamedByte
+    NamedQuotation(Token),   // Must be a NamedQuotation
+    Integer(Token),          // Must be an Integer or HexInteger
     Quotation(Quotation),
 }
 
@@ -359,15 +255,15 @@ impl StackArgInner {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Quotation {
     span: Span,
-    l_bracket: TokenType, // Must be LBracket
+    l_bracket: Token, // Must be LBracket
     body: Body,
-    r_bracket: TokenType, // Must be RBracket
+    r_bracket: Token, // Must be RBracket
 }
 
 impl Quotation {
-    pub fn new(l_bracket: TokenType, body: Body, r_bracket: TokenType) -> Self {
-        debug_assert_eq!(l_bracket.kind(), Token::LBracket);
-        debug_assert_eq!(r_bracket.kind(), Token::RBracket);
+    pub fn new(l_bracket: Token, body: Body, r_bracket: Token) -> Self {
+        debug_assert_eq!(l_bracket.kind(), TokenKind::LBracket);
+        debug_assert_eq!(r_bracket.kind(), TokenKind::RBracket);
 
         Self {
             span: Span::merge(l_bracket.span(), r_bracket.span()),
@@ -381,38 +277,16 @@ impl Quotation {
         self.span
     }
 
-    pub fn l_bracket(&self) -> &TokenType {
-        &self.l_bracket
+    pub fn l_bracket(&self) -> Token {
+        self.l_bracket.clone()
     }
 
     pub fn body(&self) -> &Body {
         &self.body
     }
 
-    pub fn r_bracket(&self) -> &TokenType {
-        &self.r_bracket
-    }
-
-    pub fn text(&self, rodeo: &Rodeo) -> String {
-        let mut f = String::new();
-        self.print(&mut f, rodeo).unwrap();
-        f
-    }
-}
-
-impl Print for Quotation {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result {
-        write!(f, "[")?;
-        for (i, token) in self.body.tokens.iter().enumerate() {
-            if i > 0 {
-                write!(f, " ")?;
-            }
-            match token {
-                Either::Left(token) => write!(f, "{}", rodeo.resolve(&token.spur()))?,
-                Either::Right(quotation) => quotation.print(f, rodeo)?,
-            }
-        }
-        write!(f, "]")
+    pub fn r_bracket(&self) -> Token {
+        self.r_bracket.clone()
     }
 }
 
@@ -420,16 +294,13 @@ impl Print for Quotation {
 pub struct Body {
     span: Span,
     // Must be an atomic token or a quotation
-    tokens: Vec<Either<TokenType, Quotation>>,
+    tokens: Vec<BodyInner>,
 }
 
 impl Body {
-    pub fn new(span: Span, tokens: Vec<Either<TokenType, Quotation>>) -> Self {
-        debug_assert!(tokens.iter().all(|t| match t {
-            Either::Left(token) => token.kind().is_atomic(),
-            Either::Right(_) => true,
-        }));
-
+    // The span of the body should not include brackets / other terminators
+    // It can not generally be created by merging the spans of its tokens
+    pub fn new(span: Span, tokens: Vec<BodyInner>) -> Self {
         Self { span, tokens }
     }
 
@@ -437,22 +308,94 @@ impl Body {
         self.span
     }
 
-    pub fn tokens(&self) -> &[Either<TokenType, Quotation>] {
+    pub fn tokens(&self) -> &[BodyInner] {
         &self.tokens
     }
 }
 
-impl Print for Body {
-    fn print(&self, f: &mut String, rodeo: &Rodeo) -> std::fmt::Result {
-        for (i, token) in self.tokens.iter().enumerate() {
-            if i > 0 {
-                write!(f, " ")?;
-            }
-            match token {
-                Either::Left(token) => write!(f, "{}", rodeo.resolve(&token.spur()))?,
-                Either::Right(quotation) => quotation.print(f, rodeo)?,
-            }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BodyInner {
+    // Atomics
+    Integer(Token),
+    HexInteger(Token),
+    String(Token),
+    RawString(Token),
+    MacroInput(Token),
+    NamedByte(Token),
+    NamedQuotation(Token),
+    Identifier(Token),
+    Brainfuck(Token),
+    // Quotation
+    Quotation(Quotation),
+    // Identifier Dot Identifier.
+    FQN(FQN),
+}
+
+impl BodyInner {
+    /// Construct a InternedToken
+    // pub fn 
+
+    pub fn span(&self) -> Span {
+        match self {
+            BodyInner::Integer(token)
+            | BodyInner::HexInteger(token)
+            | BodyInner::String(token)
+            | BodyInner::RawString(token)
+            | BodyInner::MacroInput(token)
+            | BodyInner::NamedByte(token)
+            | BodyInner::NamedQuotation(token)
+            | BodyInner::Identifier(token)
+            | BodyInner::Brainfuck(token) => token.span(),
+            BodyInner::Quotation(quotation) => quotation.span(),
+            BodyInner::FQN(FQN { module, name, .. }) => Span::merge(module.span(), name.span()),
         }
-        Ok(())
+    }
+
+    /// If self is storing a `InternedToken` return it
+    pub fn token(&self) -> Option<Token> {
+        match self {
+            BodyInner::Integer(token)
+            | BodyInner::HexInteger(token)
+            | BodyInner::String(token)
+            | BodyInner::RawString(token)
+            | BodyInner::MacroInput(token)
+            | BodyInner::NamedByte(token)
+            | BodyInner::NamedQuotation(token)
+            | BodyInner::Identifier(token)
+            | BodyInner::Brainfuck(token) => Some(token.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn quotation(&self) -> Option<&Quotation> {
+        match self {
+            BodyInner::Quotation(quotation) => Some(quotation),
+            _ => None,
+        }
+    }
+
+    pub fn fqn(&self) -> Option<&FQN> {
+        match self {
+            BodyInner::FQN(fqn) => Some(fqn),
+            _ => None,
+        }
+    }
+}
+
+/// Fully qualified name
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FQN {
+    module: Token,
+    dot: Token,
+    name: Token,
+}
+
+impl FQN {
+    pub fn new(module: Token, dot: Token, name: Token) -> Self {
+        debug_assert!(module.kind() == TokenKind::Identifier);
+        debug_assert!(dot.kind() == TokenKind::Dot);
+        debug_assert!(name.kind() == TokenKind::Identifier);
+
+        Self { module, dot, name }
     }
 }

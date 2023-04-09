@@ -1,13 +1,11 @@
-use std::rc::Rc;
-
 use codespan_reporting::diagnostic::Diagnostic;
 
-use crate::{InternedToken, Span, Token};
+use crate::{Span, TokenKind, Token};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
     UnexpectedToken {
-        found: Rc<InternedToken>,
+        found: Token,
         expected: Expectations,
     },
     UnexpectedEOF {
@@ -16,12 +14,11 @@ pub enum ParseError {
     },
 }
 
-// Converts a parser error into a diagnostic
-impl ParseError {
-    pub fn into_diagnostic(self) -> Diagnostic<usize> {
-        match self {
+impl From<ParseError> for Diagnostic<usize> {
+    fn from(error: ParseError) -> Self {
+        match error {
             ParseError::UnexpectedToken { found, expected } => {
-                let message = "Error Unexpected Token".to_string();
+                let message = "Error Unexpected InternedToken".to_string();
                 Diagnostic::error()
                     .with_message(message)
                     .with_labels(vec![found.span().primary_label(format!(
@@ -44,8 +41,8 @@ impl ParseError {
 #[derive(Debug, Clone)]
 pub enum Expectations {
     Any,
-    Exactly(Token),
-    OneOf(Vec<Token>),
+    Exactly(TokenKind),
+    OneOf(Vec<TokenKind>),
 }
 
 impl PartialEq for Expectations {

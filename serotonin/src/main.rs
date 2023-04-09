@@ -4,6 +4,9 @@ use clap::{command, Parser, Subcommand};
 
 #[derive(Parser)]
 struct Cli {
+    #[arg(long)]
+    bench: bool,
+
     #[command(subcommand)]
     subcommand: Option<Commands>,
 }
@@ -18,13 +21,28 @@ enum Commands {
         #[arg(short, long)]
         debug: Option<bool>,
     },
+    /// Debug the parser
+    Parser {
+        #[arg(short, long)]
+        file: Option<String>,
+
+        #[arg(short, long)]
+        debug: Option<bool>,
+    },
 }
 
 fn main() {
     let args = Cli::parse();
 
+    let start = std::time::Instant::now();
+
     match args.subcommand {
-        Some(Commands::Lexer { file, debug }) => debug::lex_debug(file, debug),
+        Some(Commands::Lexer { file, debug }) => debug::lex_debug(file, args.bench, debug),
+        Some(Commands::Parser { file, debug }) => debug::parse_debug(file, args.bench, debug),
         None => println!("No subcommand was used"),
+    }
+
+    if args.bench {
+        println!("Time elapsed: {:?}", start.elapsed());
     }
 }

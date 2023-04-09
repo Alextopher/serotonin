@@ -1,4 +1,4 @@
-use crate::{ast::Imports, Token};
+use crate::{ast::Imports, TokenKind};
 
 use super::{
     errors::{Expectations, ParseError},
@@ -7,7 +7,7 @@ use super::{
 
 impl<'a> Parser<'a> {
     pub(crate) fn optional_imports(&mut self) -> Option<Result<Imports, ParseError>> {
-        if self.peek_is(Token::ImportKW) {
+        if self.peek_is(TokenKind::ImportKW) {
             Some(self.required_imports())
         } else {
             None
@@ -15,21 +15,23 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn required_imports(&mut self) -> Result<Imports, ParseError> {
-        let import_kw = self.expect(Token::ImportKW)?;
+        let import_kw = self.expect(TokenKind::ImportKW)?;
         self.skip_trivia();
-        let imports = self.sep(&[Token::Identifier]);
+        let imports = self.sep(&[TokenKind::Identifier]);
         self.skip_trivia();
-        let semicolon = match self.expect(Token::Semicolon) {
+        let semicolon = match self.expect(TokenKind::Semicolon) {
             Ok(semicolon) => semicolon,
             Err(e) => match e {
                 ParseError::UnexpectedToken { found, .. } => {
-                    // expect semilcon or identifier
-                    let expected = Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]);
+                    // expect semicolon or identifier
+                    let expected =
+                        Expectations::OneOf(vec![TokenKind::Semicolon, TokenKind::Identifier]);
                     return Err(ParseError::UnexpectedToken { found, expected });
                 }
                 ParseError::UnexpectedEOF { eof, .. } => {
                     // expect semicolon or identifier
-                    let expected = Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]);
+                    let expected =
+                        Expectations::OneOf(vec![TokenKind::Semicolon, TokenKind::Identifier]);
                     return Err(ParseError::UnexpectedEOF { eof, expected });
                 }
             },
@@ -55,13 +57,13 @@ mod tests {
         let imports = parser.required_imports().unwrap();
 
         // Verify token kinds are correct
-        assert_eq!(imports.import_kw().kind(), Token::ImportKW);
+        assert_eq!(imports.import_kw().kind(), TokenKind::ImportKW);
         assert_eq!(imports.imports().len(), 3);
         assert!(imports
             .imports()
             .iter()
-            .all(|t| t.kind() == Token::Identifier));
-        assert_eq!(imports.semicolon().kind(), Token::Semicolon);
+            .all(|t| t.kind() == TokenKind::Identifier));
+        assert_eq!(imports.semicolon().kind(), TokenKind::Semicolon);
 
         // Verify spans are correct
         assert_eq!(imports.span().start(), 0);
@@ -102,7 +104,7 @@ mod tests {
             err,
             ParseError::UnexpectedEOF {
                 eof: Span::new(text.len(), text.len(), 0),
-                expected: Expectations::OneOf(vec![Token::Semicolon, Token::Identifier]),
+                expected: Expectations::OneOf(vec![TokenKind::Semicolon, TokenKind::Identifier]),
             }
         );
     }
@@ -140,7 +142,7 @@ mod tests {
             err,
             ParseError::UnexpectedToken {
                 found: tokens[8].clone(),
-                expected: Expectations::OneOf(vec![Token::Identifier, Token::Semicolon]),
+                expected: Expectations::OneOf(vec![TokenKind::Identifier, TokenKind::Semicolon]),
             }
         );
     }

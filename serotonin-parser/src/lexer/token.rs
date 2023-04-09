@@ -4,22 +4,24 @@ use logos::Logos;
 use crate::Span;
 
 /// A token that has been interned and has a span.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// 
+/// Note: InternedToken does not implement `Clone` because it is not intended to be cloned.
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct InternedToken {
-    kind: Token,
+    kind: TokenKind,
     span: Span,
     spur: Spur,
     data: TokenData,
 }
 
-impl PartialEq<Token> for InternedToken {
-    fn eq(&self, other: &Token) -> bool {
+impl PartialEq<TokenKind> for InternedToken {
+    fn eq(&self, other: &TokenKind) -> bool {
         self.kind == *other
     }
 }
 
 impl InternedToken {
-    pub fn new(kind: Token, span: Span, spur: Spur, data: TokenData) -> Self {
+    pub fn new(kind: TokenKind, span: Span, spur: Spur, data: TokenData) -> Self {
         Self {
             kind,
             span,
@@ -29,7 +31,7 @@ impl InternedToken {
     }
 
     #[inline]
-    pub fn kind(&self) -> Token {
+    pub fn kind(&self) -> TokenKind {
         self.kind
     }
 
@@ -55,7 +57,7 @@ impl InternedToken {
 
 /// A token emitted by the lexer.
 #[derive(Logos, Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub enum Token {
+pub enum TokenKind {
     #[error]
     Error,
 
@@ -146,21 +148,21 @@ pub enum Token {
     Dot,
 }
 
-impl Token {
+impl TokenKind {
     /// Returns a static slice of which tokens are atoms.
     ///
     /// Atoms are tokens that can be used within the body of a definition or a quotation.
-    pub const fn atomics() -> &'static [Token] {
+    pub const fn atomics() -> &'static [TokenKind] {
         &[
-            Token::Integer,
-            Token::HexInteger,
-            Token::String,
-            Token::RawString,
-            Token::MacroInput,
-            Token::NamedByte,
-            Token::NamedQuotation,
-            Token::Identifier,
-            Token::Brainfuck,
+            TokenKind::Integer,
+            TokenKind::HexInteger,
+            TokenKind::String,
+            TokenKind::RawString,
+            TokenKind::MacroInput,
+            TokenKind::NamedByte,
+            TokenKind::NamedQuotation,
+            TokenKind::Identifier,
+            TokenKind::Brainfuck,
         ]
     }
 
@@ -174,8 +176,8 @@ impl Token {
     /// Returns a static slice of which tokens are trivia.
     ///
     /// Trivia are tokens that are to be (mostly) ignored by the parser.
-    pub const fn trivia() -> &'static [Token] {
-        &[Token::Whitespace, Token::Comment]
+    pub const fn trivia() -> &'static [TokenKind] {
+        &[TokenKind::Whitespace, TokenKind::Comment]
     }
 
     /// Returns true is a token is trivia.
@@ -240,27 +242,27 @@ mod test {
     use logos::Logos;
     use proptest::prelude::*;
 
-    use crate::lexer::token::Token;
+    use crate::lexer::token::TokenKind;
 
     proptest! {
         #[test]
         fn never_crash(s in "\\PC*") {
-            Token::lexer(&s);
+            TokenKind::lexer(&s);
         }
 
         // Verifies that [a-z] generates a NamedByte token and not an Identifier
         #[test]
         fn named_byte(s in "[a-z]") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::NamedByte));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::NamedByte));
             assert_eq!(lexer.next(), None);
         }
 
         // Verifies that [A-Z] generates a NamedQuotation token and not an Identifier
         #[test]
         fn named_quotation(s in "[A-Z]") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::NamedQuotation));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::NamedQuotation));
             assert_eq!(lexer.next(), None);
         }
     }

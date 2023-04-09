@@ -8,22 +8,18 @@ use lasso::Rodeo;
 use logos::Logos;
 use num::{BigInt, ToPrimitive};
 
-use crate::{InternedToken, Span};
+use crate::{Span, Token, InternedToken};
 
 use super::{
-    token::{Token, TokenData},
+    token::{TokenData, TokenKind},
     TokenizerError,
 };
 
-pub fn lex(
-    input: &str,
-    file_id: usize,
-    rodeo: &mut Rodeo,
-) -> (Vec<Rc<InternedToken>>, Vec<TokenizerError>) {
+pub fn lex(input: &str, file_id: usize, rodeo: &mut Rodeo) -> (Vec<Token>, Vec<TokenizerError>) {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
 
-    for (token, range) in Token::lexer(input).spanned() {
+    for (token, range) in TokenKind::lexer(input).spanned() {
         let slice = &input[range.clone()];
 
         match create_interned_token(token, range, slice, file_id, rodeo) {
@@ -37,7 +33,7 @@ pub fn lex(
 
 // create token data
 fn create_interned_token(
-    token: Token,
+    token: TokenKind,
     range: Range<usize>,
     slice: &str,
     file_id: usize,
@@ -46,9 +42,9 @@ fn create_interned_token(
     let span = Span::from_range(range, file_id);
 
     let data: TokenData = match token {
-        Token::Integer => TokenData::Integer(lex_integer(slice, span)?),
-        Token::HexInteger => TokenData::Integer(lex_hex(slice, span)?),
-        Token::String | Token::RawString => {
+        TokenKind::Integer => TokenData::Integer(lex_integer(slice, span)?),
+        TokenKind::HexInteger => TokenData::Integer(lex_hex(slice, span)?),
+        TokenKind::String | TokenKind::RawString => {
             no_newlines(slice, span)?;
             let slice = &unescape(slice, span)?;
             ascii_only(slice, span)?;
@@ -56,20 +52,20 @@ fn create_interned_token(
             let spur = rodeo.get_or_intern(slice);
             TokenData::String(spur)
         }
-        Token::Brainfuck => {
+        TokenKind::Brainfuck => {
             let slice = trim(slice, span)?;
             no_newlines(slice, span)?;
 
             let spur = rodeo.get_or_intern(slice);
             TokenData::String(spur)
         }
-        Token::MacroInput => {
+        TokenKind::MacroInput => {
             let slice = trim(slice, span)?;
 
             let spur = rodeo.get_or_intern(slice);
             TokenData::String(spur)
         }
-        Token::NamedByte | Token::NamedQuotation | Token::Identifier => {
+        TokenKind::NamedByte | TokenKind::NamedQuotation | TokenKind::Identifier => {
             let spur = rodeo.get_or_intern(slice);
             TokenData::String(spur)
         }
@@ -242,7 +238,7 @@ mod test {
     use crate::{
         lexer::{
             lex::{ascii_only, lex_hex, lex_integer, no_newlines},
-            token::Token,
+            token::TokenKind,
             TokenizerError,
         },
         Span,
@@ -252,16 +248,16 @@ mod test {
         // Verifies integers can be parsed any size, and optionally signed
         #[test]
         fn test_integer(s in "[+-]?[0-9]+") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::Integer));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::Integer));
             assert_eq!(lexer.next(), None);
         }
 
         // Negative integers should tokenize but will emit an error
         #[test]
         fn test_negative_integer(s in "-[0-9]{1,2}") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::Integer));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::Integer));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -274,8 +270,8 @@ mod test {
         // Large negative integers should tokenize but will emit an error
         #[test]
         fn test_negative_large_integer(s in "-[0-9]{4,}") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::Integer));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::Integer));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -288,16 +284,16 @@ mod test {
         // Verifies hex can be parsed any size, and optionally signed
         #[test]
         fn test_hex(s in "[+-]?0[xX][0-9a-fA-F]+") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::HexInteger));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::HexInteger));
             assert_eq!(lexer.next(), None);
         }
 
         // Negative hex should tokenize but will emit an error
         #[test]
         fn test_negative_hex(s in "-0[xX][0-9a-fA-F]{1,2}") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::HexInteger));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::HexInteger));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -310,8 +306,8 @@ mod test {
         // Large negative hex should tokenize but will emit an error
         #[test]
         fn test_negative_large_hex(s in "-0[xX][0-9a-fA-F]{4,}") {
-            let mut lexer = Token::lexer(&s);
-            assert_eq!(lexer.next(), Some(Token::HexInteger));
+            let mut lexer = TokenKind::lexer(&s);
+            assert_eq!(lexer.next(), Some(TokenKind::HexInteger));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -357,8 +353,8 @@ mod test {
     fn test_newline_in_string_span() {
         let s = r#""foo
         bar""#;
-        let mut lexer = Token::lexer(s);
-        assert_eq!(lexer.next(), Some(Token::String));
+        let mut lexer = TokenKind::lexer(s);
+        assert_eq!(lexer.next(), Some(TokenKind::String));
         let span = Span::from_range(lexer.span(), 0);
         let slice = lexer.slice();
         assert_eq!(lexer.next(), None);
@@ -376,8 +372,8 @@ mod test {
     #[test]
     fn test_unicode_in_string_span() {
         let s = r#""foo🚀bar""#;
-        let mut lexer = Token::lexer(s);
-        assert_eq!(lexer.next(), Some(Token::String));
+        let mut lexer = TokenKind::lexer(s);
+        assert_eq!(lexer.next(), Some(TokenKind::String));
         let span = Span::from_range(lexer.span(), 0);
         let slice = lexer.slice();
         assert_eq!(lexer.next(), None);

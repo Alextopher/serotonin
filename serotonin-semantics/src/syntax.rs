@@ -55,8 +55,6 @@ impl<'a> SemanticState<'a> {
         // Keep mangled names in a set to check for duplicates
         let mut mangled_names = HashSet::new();
 
-        self.modules.insert(module.name(), module.clone());
-
         for definition in module.definitions() {
             let mangled_name = self.mangle_definition(definition, module.name(), &mut buf);
 
@@ -80,6 +78,8 @@ impl<'a> SemanticState<'a> {
 
             mangled_names.insert(mangled_name);
         }
+
+        self.modules.insert(module.name(), module);
 
         diagnostics
     }

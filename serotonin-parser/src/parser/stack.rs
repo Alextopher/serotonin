@@ -1,8 +1,6 @@
-use either::Either;
-
 use crate::{
-    ast::{Stack, StackArg},
-    Span, Token,
+    ast::{Stack, StackArg, StackArgInner},
+    Span, TokenKind,
 };
 
 use super::{
@@ -12,7 +10,7 @@ use super::{
 
 impl<'a> Parser<'a> {
     pub(crate) fn optional_stack(&mut self) -> Option<Result<Stack, ParseError>> {
-        if self.peek_is(Token::LParen) {
+        if self.peek_is(TokenKind::LParen) {
             Some(self.required_stack())
         } else {
             None
@@ -20,46 +18,55 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn required_stack(&mut self) -> Result<Stack, ParseError> {
-        let l_paren = self.expect(Token::LParen)?;
+        let l_paren = self.expect(TokenKind::LParen)?;
         self.skip_trivia();
         let mut args = Vec::new();
-        while !self.peek_is(Token::RParen) {
+        while !self.peek_is(TokenKind::RParen) {
             args.push(self.parse_stack_arg()?);
             self.skip_trivia();
         }
-        let r_paren = self.expect(Token::RParen)?;
+        let r_paren = self.expect(TokenKind::RParen)?;
 
         Ok(Stack::new(l_paren, args, r_paren))
     }
 
     pub(crate) fn parse_stack_arg(&mut self) -> Result<StackArg, ParseError> {
         let expected = Expectations::OneOf(vec![
-            Token::RBracket,
-            Token::UnnamedByte,
-            Token::UnnamedQuotation,
-            Token::NamedByte,
-            Token::NamedQuotation,
-            Token::Integer,
-            Token::HexInteger,
+            TokenKind::LBracket,
+            TokenKind::UnnamedByte,
+            TokenKind::UnnamedQuotation,
+            TokenKind::NamedByte,
+            TokenKind::NamedQuotation,
+            TokenKind::Integer,
+            TokenKind::HexInteger,
         ]);
 
         // Peek at the next token
-        let next = self.next().ok_or(ParseError::UnexpectedEOF {
-            eof: Span::new(self.index, self.index, self.file_id),
+        let next = self.peek().ok_or(ParseError::UnexpectedEOF {
+            eof: Span::new(self.source_index, self.source_index, self.file_id),
             expected: expected.clone(),
         })?;
 
         match next.kind() {
-            Token::UnnamedByte
-            | Token::UnnamedQuotation
-            | Token::NamedByte
-            | Token::NamedQuotation
-            | Token::Integer
-            | Token::HexInteger => Ok(StackArg::new(Either::Left(next))),
-            Token::RBracket => {
-                let quotation = self.parse_quotation()?;
-                Ok(StackArg::new(Either::Right(quotation)))
+            TokenKind::UnnamedByte => Ok(StackArg::new(StackArgInner::UnnamedByte(
+                self.next().unwrap(),
+            ))),
+            TokenKind::UnnamedQuotation => Ok(StackArg::new(StackArgInner::UnnamedQuotation(
+                self.next().unwrap(),
+            ))),
+            TokenKind::NamedByte => Ok(StackArg::new(StackArgInner::NamedByte(
+                self.next().unwrap(),
+            ))),
+            TokenKind::NamedQuotation => Ok(StackArg::new(StackArgInner::NamedQuotation(
+                self.next().unwrap(),
+            ))),
+            TokenKind::Integer => Ok(StackArg::new(StackArgInner::Integer(self.next().unwrap()))),
+            TokenKind::HexInteger => {
+                Ok(StackArg::new(StackArgInner::Integer(self.next().unwrap())))
             }
+            TokenKind::LBracket => Ok(StackArg::new(StackArgInner::Quotation(
+                self.parse_quotation()?,
+            ))),
             _ => Err(ParseError::UnexpectedToken {
                 found: next,
                 expected,
@@ -72,7 +79,12 @@ impl<'a> Parser<'a> {
 mod tests {
     use lasso::Rodeo;
 
-    use crate::{ast::StackArgInner, lexer, parser::Parser, Span, Token};
+    use crate::{
+        ast::{Body, BodyInner, Quotation, StackArgInner},
+        lexer,
+        parser::Parser,
+        Span, TokenKind,
+    };
 
     #[test]
     fn test_optional_stack() {
@@ -84,7 +96,7 @@ mod tests {
         let mut parser = Parser::new(&tokens, 0);
         let stack = parser.required_stack().unwrap();
 
-        assert_eq!(stack.l_paren().kind(), Token::LParen);
+        assert_eq!(stack.l_paren().kind(), TokenKind::LParen);
         assert_eq!(stack.args().len(), 3);
         assert_eq!(
             stack.args()[0].inner(),
@@ -98,7 +110,7 @@ mod tests {
             stack.args()[2].inner(),
             &StackArgInner::NamedByte(tokens[5].clone())
         );
-        assert_eq!(stack.r_paren().kind(), Token::RParen);
+        assert_eq!(stack.r_paren().kind(), TokenKind::RParen);
 
         // Verify spans
         assert_eq!(stack.l_paren().span(), Span::new(0, 1, 0));
@@ -107,10 +119,52 @@ mod tests {
         assert_eq!(stack.args()[2].span(), Span::new(5, 6, 0));
         assert_eq!(stack.r_paren().span(), Span::new(6, 7, 0));
         assert_eq!(stack.span(), Span::new(0, 7, 0));
+    }
 
-        // Verify text
-        assert_eq!(stack.l_paren().text(&rodeo), "(");
-        assert_eq!(stack.r_paren().text(&rodeo), ")");
-        assert_eq!(stack.args()[0].text(&rodeo), "a");
+    // Test a stack with every type of stack arg
+    #[test]
+    fn test_stack_args() {
+        let mut rodeo = Rodeo::default();
+
+        let input = "(a 0 @ S [true] ?)";
+        let (tokens, _) = lexer::lex(input, 0, &mut rodeo);
+
+        let mut parser = Parser::new(&tokens, 0);
+        let stack = parser.required_stack().unwrap();
+
+        assert_eq!(stack.l_paren().kind(), TokenKind::LParen);
+        assert_eq!(stack.args().len(), 6);
+        assert_eq!(
+            stack.args()[0].inner(),
+            &StackArgInner::NamedByte(tokens[1].clone())
+        );
+        assert_eq!(
+            stack.args()[1].inner(),
+            &StackArgInner::Integer(tokens[3].clone())
+        );
+        assert_eq!(
+            stack.args()[2].inner(),
+            &StackArgInner::UnnamedByte(tokens[5].clone())
+        );
+        assert_eq!(
+            stack.args()[3].inner(),
+            &StackArgInner::NamedQuotation(tokens[7].clone())
+        );
+        let quotation = Quotation::new(
+            tokens[9].clone(),
+            Body::new(
+                tokens[10].span(),
+                vec![BodyInner::Identifier(tokens[10].clone())],
+            ),
+            tokens[11].clone(),
+        );
+        assert_eq!(
+            stack.args()[4].inner(),
+            &StackArgInner::Quotation(quotation)
+        );
+        assert_eq!(
+            stack.args()[5].inner(),
+            &StackArgInner::UnnamedQuotation(tokens[13].clone())
+        );
     }
 }
