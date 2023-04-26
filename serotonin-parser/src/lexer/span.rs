@@ -14,6 +14,7 @@ pub struct Span {
 }
 
 impl Span {
+    #[inline]
     pub fn new(start: usize, end: usize, file_id: usize) -> Self {
         debug_assert!(start <= end, "Span start must be before span end");
         Self {
@@ -23,6 +24,7 @@ impl Span {
         }
     }
 
+    #[inline]
     pub fn from_range(range: Range<usize>, file_id: usize) -> Self {
         Self {
             start: range.start,
@@ -32,11 +34,13 @@ impl Span {
     }
 
     /// Creates a new Label from a span.
+    #[inline]
     pub fn primary_label(&self, message: impl Into<String>) -> Label<usize> {
         Label::primary(self.file_id, self.range()).with_message(message)
     }
 
     /// Creates a new Label from a span.
+    #[inline]
     pub fn secondary_label(&self, message: impl Into<String>) -> Label<usize> {
         Label::secondary(self.file_id, self.range()).with_message(message)
     }
@@ -44,6 +48,7 @@ impl Span {
     /// Creates a new Span that goes from start of s1 to the end of s2
     ///
     /// Note: s1.end and s2.start do not have to be the same
+    #[inline]
     pub fn merge(s1: impl Into<Self>, s2: impl Into<Self>) -> Self {
         let s1 = s1.into();
         let s2 = s2.into();
@@ -53,21 +58,25 @@ impl Span {
     }
 
     /// Returns the range start..end
+    #[inline]
     pub fn range(&self) -> Range<usize> {
         self.start..self.end
     }
 
     /// Returns the start of the span
+    #[inline]
     pub fn start(&self) -> usize {
         self.start
     }
 
     /// Returns the end of the span
+    #[inline]
     pub fn end(&self) -> usize {
         self.end
     }
 
     /// Returns the file id of the span
+    #[inline]
     pub fn file_id(&self) -> usize {
         self.file_id
     }

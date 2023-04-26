@@ -64,7 +64,7 @@ fn pretty_print(tokens: &[Token], reader: &RodeoReader) -> String {
             TokenData::None => {
                 // If the token is Error print it in red using the colored crate
                 out.push_str(&match token.kind() {
-                    TokenKind::Error => reader.resolve(&token.spur()).red().to_string(),
+                    // TokenKind::Error => reader.resolve(&token.spur()).red().to_string(),
                     TokenKind::Comment => reader.resolve(&token.spur()).dimmed().to_string(),
                     TokenKind::Whitespace
                     | TokenKind::Substitution

@@ -21,6 +21,7 @@ pub enum TokenizerError {
     InvalidEscapeSequence(Span, UnescapeError),
     NewlineInString(Span, Span),
     NonAsciiString(Span, Span),
+    UnknownToken(Span), // generic parsing error
 }
 
 impl TokenizerError {
@@ -40,6 +41,7 @@ impl TokenizerError {
             InvalidEscapeSequence(_, _) => "E009",
             NewlineInString(_, _) => "E010",
             NonAsciiString(_, _) => "E011",
+            UnknownToken(_) => "E012",
         }
     }
 
@@ -69,6 +71,7 @@ impl TokenizerError {
             InvalidEscapeSequence(_, _) => "Invalid escape sequence in string.",
             NewlineInString(_, _) => "Newlines are not allowed in strings.",
             NonAsciiString(_, _) => "Non-ASCII characters are not allowed in strings.",
+            UnknownToken(_) => "Invalid token.",
         }
     }
 }
@@ -137,6 +140,9 @@ impl From<TokenizerError> for Diagnostic<usize> {
                 span.primary_label("Strings with non-ascii characters are not yet supported"),
                 char.secondary_label("Non-ascii character found here"),
             ]),
+            UnknownToken(span) => Diagnostic::error().with_labels(vec![span.primary_label(
+                "Invalid token.",
+            )]),
         }
         .with_message(err.message())
         .with_code(err.code())

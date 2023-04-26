@@ -2,7 +2,7 @@
 //!
 //! Since the language is so simple a lexer can almost completely parse the language.
 //! The only thing that can not be handled by the lexer is nested quotations.
-use std::ops::Range;
+use std::{ops::Range, rc::Rc};
 
 use lasso::Rodeo;
 use logos::Logos;
@@ -33,16 +33,9 @@ pub fn lex(input: &str, file_id: usize, rodeo: &mut Rodeo) -> (Vec<Token>, Vec<T
 
     println!("Lexing took {:?}", start.elapsed());
 
-    let start = std::time::Instant::now();
-    let leaked = interned_tokens.leak();
-
-    let tokens = leaked
-        .iter()
-        .enumerate()
-        .map(|(index, _)| Token {
-            tokens: leaked,
-            index,
-        })
+    let tokens = interned_tokens
+        .into_iter()
+        .map(Rc::new)
         .collect();
 
     println!("Creating tokens took {:?}", start.elapsed());
@@ -52,13 +45,18 @@ pub fn lex(input: &str, file_id: usize, rodeo: &mut Rodeo) -> (Vec<Token>, Vec<T
 
 // create token data
 fn create_interned_token(
-    token: TokenKind,
+    token: Result<TokenKind, ()>,
     range: Range<usize>,
     slice: &str,
     file_id: usize,
     rodeo: &mut Rodeo,
 ) -> Result<InternedToken, TokenizerError> {
     let span = Span::from_range(range, file_id);
+
+    let token = match token {
+        Ok(token) => token,
+        Err(_) => return Err(TokenizerError::UnknownToken(span)),
+    };
 
     let data: TokenData = match token {
         TokenKind::Integer => TokenData::Byte(lex_integer(slice, span)?),
@@ -268,7 +266,7 @@ mod test {
         #[test]
         fn test_integer(s in "[+-]?[0-9]+") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::Integer));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::Integer)));
             assert_eq!(lexer.next(), None);
         }
 
@@ -276,7 +274,7 @@ mod test {
         #[test]
         fn test_negative_integer(s in "-[0-9]{1,2}") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::Integer));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::Integer)));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -290,7 +288,7 @@ mod test {
         #[test]
         fn test_negative_large_integer(s in "-[0-9]{4,}") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::Integer));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::Integer)));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -304,7 +302,7 @@ mod test {
         #[test]
         fn test_hex(s in "[+-]?0[xX][0-9a-fA-F]+") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::HexInteger));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::HexInteger)));
             assert_eq!(lexer.next(), None);
         }
 
@@ -312,7 +310,7 @@ mod test {
         #[test]
         fn test_negative_hex(s in "-0[xX][0-9a-fA-F]{1,2}") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::HexInteger));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::HexInteger)));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -326,7 +324,7 @@ mod test {
         #[test]
         fn test_negative_large_hex(s in "-0[xX][0-9a-fA-F]{4,}") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::HexInteger));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::HexInteger)));
             let span = Span::from_range(lexer.span(), 0);
             let slice = lexer.slice();
             assert_eq!(lexer.next(), None);
@@ -373,7 +371,7 @@ mod test {
         let s = r#""foo
         bar""#;
         let mut lexer = TokenKind::lexer(s);
-        assert_eq!(lexer.next(), Some(TokenKind::String));
+        assert_eq!(lexer.next(), Some(Ok(TokenKind::String)));
         let span = Span::from_range(lexer.span(), 0);
         let slice = lexer.slice();
         assert_eq!(lexer.next(), None);
@@ -392,7 +390,7 @@ mod test {
     fn test_unicode_in_string_span() {
         let s = r#""foo🚀bar""#;
         let mut lexer = TokenKind::lexer(s);
-        assert_eq!(lexer.next(), Some(TokenKind::String));
+        assert_eq!(lexer.next(), Some(Ok(TokenKind::String)));
         let span = Span::from_range(lexer.span(), 0);
         let slice = lexer.slice();
         assert_eq!(lexer.next(), None);

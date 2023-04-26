@@ -15,33 +15,23 @@ pub struct InternedToken {
 }
 
 impl PartialEq for InternedToken {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
-        // A hex literal and decimal literal equal if they have the same value
-        match (self.kind(), other.kind()) {
-            (TokenKind::HexInteger, TokenKind::Integer) => {
-                self.data.unwrap_byte() == other.data.unwrap_byte()
-            }
-            (TokenKind::Integer, TokenKind::HexInteger) => {
-                self.data.unwrap_byte() == other.data.unwrap_byte()
-            }
-            _ => {
-                debug_assert!(self.kind == other.kind);
-                self.spur == other.spur
-            }
-        }
+        self.spur == other.spur
     }
 }
 
 impl Eq for InternedToken {}
 
 impl std::hash::Hash for InternedToken {
+    #[inline]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.kind.hash(state);
         self.spur.hash(state);
     }
 }
 
 impl InternedToken {
+    #[inline]
     pub fn new(kind: TokenKind, span: Span, spur: Spur, data: TokenData) -> Self {
         Self {
             kind,
@@ -71,6 +61,7 @@ impl InternedToken {
         &self.data
     }
 
+    #[inline]
     pub fn text<'a>(&'a self, rodeo: &'a Rodeo) -> &'a str {
         rodeo.resolve(&self.spur)
     }
@@ -79,9 +70,6 @@ impl InternedToken {
 /// A token emitted by the lexer.
 #[derive(Logos, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TokenKind {
-    #[error]
-    Error,
-
     #[regex(r"[ \t\n\f]+")]
     Whitespace,
 
@@ -173,6 +161,7 @@ impl TokenKind {
     /// Returns a static slice of which tokens are atoms.
     ///
     /// Atoms are tokens that can be used within the body of a definition or a quotation.
+    #[inline]
     pub const fn atomics() -> &'static [TokenKind] {
         &[
             TokenKind::Integer,
@@ -190,6 +179,7 @@ impl TokenKind {
     /// Returns true if the token is an atom.
     ///
     /// Atoms are tokens that can be used within the body of a definition or a quotation.
+    #[inline]
     pub fn is_atomic(&self) -> bool {
         Self::atomics().contains(self)
     }
@@ -197,11 +187,13 @@ impl TokenKind {
     /// Returns a static slice of which tokens are trivia.
     ///
     /// Trivia are tokens that are to be (mostly) ignored by the parser.
+    #[inline]
     pub const fn trivia() -> &'static [TokenKind] {
         &[TokenKind::Whitespace, TokenKind::Comment]
     }
 
     /// Returns true is a token is trivia.
+    #[inline]
     pub fn is_trivia(&self) -> bool {
         Self::trivia().contains(self)
     }
@@ -217,18 +209,30 @@ pub enum TokenData {
 }
 
 impl TokenData {
+    #[inline]
     pub fn is_none(&self) -> bool {
         matches!(self, TokenData::None)
     }
 
+    #[inline]
     pub fn is_byte(&self) -> bool {
         matches!(self, TokenData::Byte(_))
     }
 
+    #[inline]
     pub fn is_string(&self) -> bool {
         matches!(self, TokenData::String(_))
     }
 
+    #[inline]
+    pub fn get_byte(&self) -> Option<u8> {
+        match self {
+            TokenData::Byte(b) => Some(*b),
+            _ => None
+        }
+    }
+
+    #[inline]
     pub fn unwrap_byte(&self) -> u8 {
         match self {
             TokenData::Byte(i) => *i,
@@ -236,6 +240,15 @@ impl TokenData {
         }
     }
 
+    #[inline]
+    pub fn get_string(&self) -> Option<Spur> {
+        match self {
+            TokenData::String(s) => Some(*s),
+            _ => None
+        }
+    }
+
+    #[inline]
     pub fn unwrap_string(&self) -> Spur {
         match self {
             TokenData::String(s) => *s,
@@ -261,7 +274,7 @@ mod test {
         #[test]
         fn named_byte(s in "[a-z]") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::NamedByte));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::NamedByte)));
             assert_eq!(lexer.next(), None);
         }
 
@@ -269,7 +282,7 @@ mod test {
         #[test]
         fn named_quotation(s in "[A-Z]") {
             let mut lexer = TokenKind::lexer(&s);
-            assert_eq!(lexer.next(), Some(TokenKind::NamedQuotation));
+            assert_eq!(lexer.next(), Some(Ok(TokenKind::NamedQuotation)));
             assert_eq!(lexer.next(), None);
         }
     }
