@@ -129,7 +129,7 @@ vs
 
 Both of these programs have the effect of reading a byte and then adding 3. However, everyone would agree that the second one is better. This pattern is common in brainfuck programming, we can often be clever if we have some constraints. The language wouldn't feel complete without a way to create these optimizations. To achieve this I took inspiration from Rust and Lisp, I want the entire language available at compile time.
 
-So, a generation rule performs constraint substitution (monomorphization), gets compiled down to brianfuck, gets executed, and the resulting output is treated as brainfuck. This resulting program is inserted into a mangled substitution rule. Stepping through generation of `3 +` we see:
+So, a generation rule performs constraint substitution (kind of like "monomorphization" or "beta reduction"), gets compiled down to brianfuck, gets executed, and the resulting output is treated as brainfuck. This resulting program is inserted into a mangled substitution rule. Stepping through generation of `3 +` we see:
 
 ```text
 + (b) ==? '+' b dupn sprint;
@@ -196,11 +196,15 @@ Without constraints, every function could only have a single rule, and functions
 Here are some examples of how to use constraints. Remember, the least preferred rule is written first. You may want to read bottom to top.
 
 ```text
+true == 1;
+false == 0;
+
 # eq (a b -- a==b)
 eq == `<[->-<]+>[<->[-]]<`;
 eq (a b) == false;
 eq (a a) == true;
-eq (0) == zeq;
+eq (0) == zeq;         
+# this says "read 0 eq => read zeq"
 
 # zeq (a -- a==0)
 zeq == `>+<[>[-]<[-]]>[-<+>]<`;
@@ -210,7 +214,7 @@ zeq (0) == true;
 # {condition}[{body}{condition}]
 while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
 while ([true] B) ==? '[' B ']<' sprint;
-while ([false] ?) ==? ; # dead code elimination !
+while ([false] ?) == ; # dead code elimination !
 ```
 
 ## Macros
@@ -239,4 +243,4 @@ At the time of writing `{a b c -- b c a} autoperm!` generates the following BF b
 `[->+<]<[->+<]<[->+<]>>>[-<<<+>>>]<`
 ```
 
-There is no known brainfuck program to do this.
+There is not yet a known brainfuck program to do this.
