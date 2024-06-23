@@ -9,7 +9,7 @@ use lasso::Spur;
 
 use crate::{
     ast::{Definition, Module},
-    Span, TokenKind, Token,
+    Span, Token, TokenKind,
 };
 
 use errors::ParseError;
@@ -106,19 +106,6 @@ impl<'a> Parser<'a> {
             })
         }
     }
-
-    /// Collects 0 or more tokens of the given kind
-    // pub(crate) fn collect(&mut self, kind: InternedToken) -> Vec<InternedToken> {
-    //     let mut tokens = Vec::new();
-    //     while let Some(token) = self.peek() {
-    //         if token.kind() == kind {
-    //             tokens.push(self.next().unwrap());
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    //     tokens
-    // }
 
     /// Collects 0 or more tokens of the given kind, separated by trivia
     pub(crate) fn sep(&mut self, kind: &[TokenKind]) -> Vec<Token> {

@@ -1,6 +1,6 @@
 use codespan_reporting::diagnostic::Diagnostic;
 
-use crate::{Span, TokenKind, Token};
+use crate::{Span, Token, TokenKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
@@ -18,7 +18,7 @@ impl From<ParseError> for Diagnostic<usize> {
     fn from(error: ParseError) -> Self {
         match error {
             ParseError::UnexpectedToken { found, expected } => {
-                let message = "Error Unexpected InternedToken".to_string();
+                let message = "Error Unexpected Token".to_string();
                 Diagnostic::error()
                     .with_message(message)
                     .with_labels(vec![found.span().primary_label(format!(

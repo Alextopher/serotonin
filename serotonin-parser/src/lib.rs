@@ -1,13 +1,9 @@
 pub mod ast;
-pub mod errors;
+
+/// The lexer creates a stream of tokens from a file or string.
 mod lexer;
+/// The parser transforms a stream of tokens into an abstract syntax tree.
 mod parser;
 
-pub use lexer::InternedToken;
-pub use lexer::Span;
-pub use lexer::TokenData;
-pub use lexer::TokenKind;
-pub use lexer::Token;
-
-pub use lexer::lex;
+pub use lexer::{InternedToken, Span, Token, TokenData, TokenKind, lex};
 pub use parser::{parse_definition, parse_module};

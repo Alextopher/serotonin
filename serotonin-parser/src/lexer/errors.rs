@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use codespan_reporting::diagnostic::Diagnostic;
 use colored::Colorize;
 use snailquote::UnescapeError;
@@ -5,9 +7,9 @@ use snailquote::UnescapeError;
 use crate::Span;
 
 const ICE_NOTE: &str =
-    "This is a compiler error and should not have happened. Please report this bug.";
+    "This is a compiler error and should not have happened. Please report this as a bug.";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenizerError {
     ICEEmptyStringAsInteger(Span),
     NegativeInteger(Span, u8),
@@ -18,7 +20,7 @@ pub enum TokenizerError {
     LargeHex(Span, u8),
     ICEValidHexFailed(Span),
     ICEStringCouldNotBeTrimmed(Span),
-    InvalidEscapeSequence(Span, UnescapeError),
+    InvalidEscapeSequence(Span, Arc<UnescapeError>),
     NewlineInString(Span, Span),
     NonAsciiString(Span, Span),
     UnknownToken(Span), // generic parsing error
@@ -73,6 +75,12 @@ impl TokenizerError {
             NonAsciiString(_, _) => "Non-ASCII characters are not allowed in strings.",
             UnknownToken(_) => "Invalid token.",
         }
+    }
+}
+
+impl From<(Span, UnescapeError)> for TokenizerError {
+    fn from((span, err): (Span, UnescapeError)) -> Self {
+        TokenizerError::InvalidEscapeSequence(span, Arc::new(err))
     }
 }
 
@@ -140,9 +148,9 @@ impl From<TokenizerError> for Diagnostic<usize> {
                 span.primary_label("Strings with non-ascii characters are not yet supported"),
                 char.secondary_label("Non-ascii character found here"),
             ]),
-            UnknownToken(span) => Diagnostic::error().with_labels(vec![span.primary_label(
-                "Invalid token.",
-            )]),
+            UnknownToken(span) => {
+                Diagnostic::error().with_labels(vec![span.primary_label("Invalid token.")])
+            }
         }
         .with_message(err.message())
         .with_code(err.code())
@@ -263,7 +271,7 @@ mod debug {
 
         let err = TokenizerError::InvalidEscapeSequence(
             Span::new(9, 11, file_id),
-            snailquote::unescape(text).unwrap_err(),
+            snailquote::unescape(text).unwrap_err().into(),
         );
 
         print_error(files, err);

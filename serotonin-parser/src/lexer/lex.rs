@@ -8,19 +8,18 @@ use lasso::Rodeo;
 use logos::Logos;
 use num::{BigInt, ToPrimitive};
 
-use crate::{Span, InternedToken};
+use crate::{InternedToken, Span};
 
 use super::{
     token::{TokenData, TokenKind},
-    TokenizerError, Token,
+    Token, TokenizerError,
 };
 
 pub fn lex(input: &str, file_id: usize, rodeo: &mut Rodeo) -> (Vec<Token>, Vec<TokenizerError>) {
     let mut interned_tokens = Vec::new();
     let mut diagnostics = Vec::new();
 
-    // Time creating tokens
-
+    // Time spent creating tokens
     let start = std::time::Instant::now();
     for (token, range) in TokenKind::lexer(input).spanned() {
         let slice = &input[range.clone()];
@@ -33,17 +32,13 @@ pub fn lex(input: &str, file_id: usize, rodeo: &mut Rodeo) -> (Vec<Token>, Vec<T
 
     println!("Lexing took {:?}", start.elapsed());
 
-    let tokens = interned_tokens
-        .into_iter()
-        .map(Rc::new)
-        .collect();
+    let tokens = interned_tokens.into_iter().map(Rc::new).collect();
 
     println!("Creating tokens took {:?}", start.elapsed());
 
     (tokens, diagnostics)
 }
 
-// create token data
 fn create_interned_token(
     token: Result<TokenKind, ()>,
     range: Range<usize>,
@@ -231,7 +226,7 @@ fn no_newlines(slice: &str, span: Span) -> Result<(), TokenizerError> {
 fn unescape(slice: &str, span: Span) -> Result<String, TokenizerError> {
     match snailquote::unescape(slice) {
         Ok(s) => Ok(s),
-        Err(e) => Err(TokenizerError::InvalidEscapeSequence(span, e)),
+        Err(e) => Err((span, e).into()),
     }
 }
 
@@ -377,7 +372,7 @@ mod test {
         assert_eq!(lexer.next(), None);
 
         let err = no_newlines(slice, span).unwrap_err();
-        let TokenizerError::NewlineInString( string_span, newline_span ) = err else {
+        let TokenizerError::NewlineInString(string_span, newline_span) = err else {
             panic!("Expected a newline error");
         };
 

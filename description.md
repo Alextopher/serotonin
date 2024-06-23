@@ -3,8 +3,8 @@
 Serotonin is a _toy_ stacked-based programming language designed to compile to Brainfuck. It is inspired by Joy and I attempt to take advantage of the happiness you find in declarative programming languages in the Brainfuck world. In contrast to that idea, I am not interested in hiding away the details of Brainfuck, both languages are very limiting.
 
 ## Rewriting system
-
-At the core of Serotonin is its rewriting system. Rewriting systems are powerful ideas and are easy to understand. You likely already know a rewriting system: named algebra. Consider this expression:
+TODO
+At the core of Serotonin is its rewriting system.
 
 ```text
 3 * (5 + 2)
@@ -12,22 +12,22 @@ At the core of Serotonin is its rewriting system. Rewriting systems are powerful
 
 We learn a set of rules we can apply to simplify this expression. One possible simplification is:
 
-| expression  | rewrite | rule |
-|-------------|---------|------|
+| expression  | rewrite                       | rule                  |
+|-------------|-------------------------------|-----------------------|
 | 3 * (5 + 2) | a * (b + c) = a \* b + a \* c | distributive property |
-| 3 \* 5 + 3 \* 2 | 3 * 5 = 15 | multiplication |
-| 15 + 3 * 2  | 3 * 2 = 6 | multiplication |
-| 15 + 6      | 15 + 6 = 21 | addition |
-| 21          | done
+| 3 \* 5 + 3 \* 2 | 3 * 5 = 15                | multiplication        |
+| 15 + 3 * 2  | 3 * 2 = 6                     | multiplication        |
+| 15 + 6      | 15 + 6 = 21                   | addition              |
+| 21          | done                          |                       |
 
 Another is
 
-| expression  | rewrite | rule |
-|-------------|---------|------|
-| 3 * (5 + 2) | 5 + 2 = 7  | addition
-| 3 * (7)     | (x) = x    | unwraping
-| 3 * 7       | 3 * 7 = 21 | multiplication
-| 21          | done
+| expression  | rewrite    | rule           |
+|-------------|------------|----------------|
+| 3 * (5 + 2) | 5 + 2 = 7  | addition       |
+| 3 * (7)     | (x) = x    | unwraping      |
+| 3 * 7       | 3 * 7 = 21 | multiplication |
+| 21          | done       |                |
 
 One way we can get into trouble with algebra is precedence. There is an agreed-upon order where we must prefer some rules over others. For example, rules that apply multiplication must be done before addition, and terms inside parentheses should be simplified first. In school, I was taught mnemonics to remember this order. **P**lease **E**xcuse **M**y **D**ear **A**unt **S**ally, parentheses - exponents - multiplication - division - addition - subtraction. Anyone who has learned algebra, or who has tried to write a compiler, knows precedence is tricky. It would be nice if we could remove almost all precedence rules while still being able to unambiguously simplify an expression.
 
@@ -50,23 +50,23 @@ Where the left-hand side of the `--` are the elements _pop'd_ from the stack and
 To simplify this expression we only need to repeatedly execute each instruction.
 
 | stack | instructions | next function |
-|-------|--------------|------|
-| empty | `3 5 2 + *`  | push 3
-| 3     | `5 2 + *`    | push 5
-| 3 5   | `2 + *`      | push 2
-| 3 5 2 | `+ *`        | +
-| 3 7   | `*`          | *
-| 21    |              | done
+|-------|--------------|---------------|
+| empty | `3 5 2 + *`  | push 3        |
+| 3     | `5 2 + *`    | push 5        |
+| 3 5   | `2 + *`      | push 2        |
+| 3 5 2 | `+ *`        | +             |
+| 3 7   | `*`          | *             |
+| 21    |              | done          |
 
 Now to compile this expression to Brainfuck we define how to rewrite instructions (stack functions) to equivalent BF code.
 
-| function    | equivlent brainfuck |
-|-------------|---------------------|
-| push 3      | >+++
-| push 5      | >+++++
-| push 2      | >++
-| +           | [-<+>]<
-| *           | <[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<
+| function    | equivalent brainfuck |
+|-------------|----------------------|
+| push 3      | >+++                 |
+| push 5      | >+++++               |
+| push 2      | >++                  |
+| +           | [-<+>]<              |
+| *           | <[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<< |
 
 And now, using simple concatenation the resulting program is
 
@@ -78,11 +78,11 @@ And now, using simple concatenation the resulting program is
 
 In Serotonin, there are 3 kinds of rewriting rules. A single term can have multiple rewrite rules as long as they have independent _constraints_. Rewrites defined _last_ have higher precedence, assuming the constraints match. More on constraints later.
 
-| Rewrite | symbol | meaning |
-|:------|:--------|:---------|
-| Substitution | `==` | Replaces the term on the left with the terms on the right.
-| Generation | `==?` | Executes the right-hand side, then replaces the left with the result treated as a Brainfuck block.
-| Execution | `==!` | Executes the right-hand side, then replaces the left with the result treated as constant bytes.
+| Rewrite      | Symbol | Meaning                                                                                            |
+|:-------------|:-------|:---------------------------------------------------------------------------------------------------|
+| Substitution | `==`   | Replaces the term on the left with the terms on the right.                                         |
+| Generation   | `==?`  | Executes the right-hand side, then replaces the left with the result treated as a Brainfuck block. |
+| Execution    | `==!`  | Executes the right-hand side, then replaces the left with the result treated as constant bytes.    |
 
 For example, the standard library addition function has the following rewrite rules.
 
@@ -186,12 +186,12 @@ Without constraints, every function could only have a single rule, and functions
 
 | Constraint | Meaning |
 |--------|---------|
-| Lower Case Ascii. ie `a` | a byte we've named. we can match against
-| `@`                      | a byte we don't care to name
-| Number. ie `0`           | a byte that perfectly matches the number
-| Upper Case Ascii. ie `S` | a quotation we've given a name. we could match against
-| `?`                      | a quotation we haven't named
-| `[...]`                  | a quotation that is equivalent to what is between the braces
+| Lower Case Ascii. ie `a` | a byte we've named. we can match against |
+| `@`                      | a byte we don't care to name |
+| Number. ie `0`           | a byte that perfectly matches the number |
+| Upper Case Ascii. ie `S` | a quotation we've given a name. we could match against |
+| `?`                      | a quotation we haven't named |
+| `[...]`                  | a quotation that is equivalent to what is between the braces |
 
 Here are some examples of how to use constraints. Remember, the least preferred rule is written first. You may want to read bottom to top.
 

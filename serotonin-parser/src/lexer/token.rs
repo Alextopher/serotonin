@@ -4,14 +4,16 @@ use logos::Logos;
 use crate::Span;
 
 /// A token that has been interned and has a span.
-/// 
-/// Note: InternedToken does not implement `Clone` because it is not intended to be cloned.
 #[derive(Debug)]
 pub struct InternedToken {
+    // The "kind" of token as defined by the logos lexer
     kind: TokenKind,
+    // The span of the token
     span: Span,
-    spur: Spur, // The interned string
-    data: TokenData, // Additional data for some tokens
+    // String content of the token, interned using the lasso crate
+    spur: Spur,
+    // Additional data where needed
+    data: TokenData,
 }
 
 impl PartialEq for InternedToken {
@@ -31,7 +33,6 @@ impl std::hash::Hash for InternedToken {
 }
 
 impl InternedToken {
-    #[inline]
     pub fn new(kind: TokenKind, span: Span, spur: Spur, data: TokenData) -> Self {
         Self {
             kind,
@@ -41,27 +42,22 @@ impl InternedToken {
         }
     }
 
-    #[inline]
     pub fn kind(&self) -> TokenKind {
         self.kind
     }
 
-    #[inline]
     pub fn span(&self) -> Span {
         self.span
     }
 
-    #[inline]
     pub fn spur(&self) -> Spur {
         self.spur
     }
 
-    #[inline]
     pub fn data(&self) -> &TokenData {
         &self.data
     }
 
-    #[inline]
     pub fn text<'a>(&'a self, rodeo: &'a Rodeo) -> &'a str {
         rodeo.resolve(&self.spur)
     }
@@ -161,7 +157,6 @@ impl TokenKind {
     /// Returns a static slice of which tokens are atoms.
     ///
     /// Atoms are tokens that can be used within the body of a definition or a quotation.
-    #[inline]
     pub const fn atomics() -> &'static [TokenKind] {
         &[
             TokenKind::Integer,
@@ -179,7 +174,6 @@ impl TokenKind {
     /// Returns true if the token is an atom.
     ///
     /// Atoms are tokens that can be used within the body of a definition or a quotation.
-    #[inline]
     pub fn is_atomic(&self) -> bool {
         Self::atomics().contains(self)
     }
@@ -187,20 +181,17 @@ impl TokenKind {
     /// Returns a static slice of which tokens are trivia.
     ///
     /// Trivia are tokens that are to be (mostly) ignored by the parser.
-    #[inline]
     pub const fn trivia() -> &'static [TokenKind] {
         &[TokenKind::Whitespace, TokenKind::Comment]
     }
 
     /// Returns true is a token is trivia.
-    #[inline]
     pub fn is_trivia(&self) -> bool {
         Self::trivia().contains(self)
     }
 }
 
 /// Some tokens have additional information.
-/// Currently this is either an interned string or a number.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenData {
     None,
@@ -209,30 +200,25 @@ pub enum TokenData {
 }
 
 impl TokenData {
-    #[inline]
     pub fn is_none(&self) -> bool {
         matches!(self, TokenData::None)
     }
 
-    #[inline]
     pub fn is_byte(&self) -> bool {
         matches!(self, TokenData::Byte(_))
     }
 
-    #[inline]
     pub fn is_string(&self) -> bool {
         matches!(self, TokenData::String(_))
     }
 
-    #[inline]
     pub fn get_byte(&self) -> Option<u8> {
         match self {
             TokenData::Byte(b) => Some(*b),
-            _ => None
+            _ => None,
         }
     }
 
-    #[inline]
     pub fn unwrap_byte(&self) -> u8 {
         match self {
             TokenData::Byte(i) => *i,
@@ -240,15 +226,13 @@ impl TokenData {
         }
     }
 
-    #[inline]
     pub fn get_string(&self) -> Option<Spur> {
         match self {
             TokenData::String(s) => Some(*s),
-            _ => None
+            _ => None,
         }
     }
 
-    #[inline]
     pub fn unwrap_string(&self) -> Spur {
         match self {
             TokenData::String(s) => *s,

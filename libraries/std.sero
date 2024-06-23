@@ -213,7 +213,8 @@ neq == eq not;
 
 ##### Control Flow #####
 
-# {condition}[{body}{condition}]
-while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
-#while ([true] B) ==? '[' B ']<' sprint;
-#while ([false] ?) ==? ; # dead code elimination !
+# if-then
+if (C T) ==? C '[[-]<' T '>]<' sprint;
+
+# if-then-else
+ifte (C T E) == C [] [T] if [not] [T] if;

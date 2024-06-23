@@ -98,8 +98,7 @@ impl Parser<'_> {
                     TokenKind::Brainfuck => Ok(BodyInner::Brainfuck(self.next().unwrap())),
                     // Identifier either starts a FQN or is an atomic
                     TokenKind::Identifier => {
-                        // Identifier could be the start of a fully qualified name
-                        // or it could be a single identifier
+                        // Identifier could be the start of a fully qualified name or it could be a single identifier
                         let first = self.expect(TokenKind::Identifier).unwrap(); // Safe to unwrap because we know it's an identifier
 
                         if self.peek_is(TokenKind::Dot) {
@@ -136,7 +135,8 @@ mod test {
     use crate::{
         ast::{BodyInner, Stack, StackArg},
         lexer,
-        parser::Parser, TokenKind,
+        parser::Parser,
+        TokenKind,
     };
 
     #[test]

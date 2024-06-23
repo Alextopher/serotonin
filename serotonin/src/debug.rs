@@ -10,7 +10,7 @@ use codespan_reporting::{
 };
 use colored::Colorize;
 use lasso::RodeoReader;
-use serotonin_parser::{lex, parse_module, Span, TokenData, TokenKind, Token};
+use serotonin_parser::{lex, parse_module, Token, TokenData, TokenKind};
 
 pub fn lex_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
     let file = file.unwrap_or(
@@ -134,8 +134,8 @@ pub fn parse_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
     );
 
     let content = std::fs::read_to_string(file).unwrap();
-    let len = content.len();
-    
+    let _len = content.len();
+
     let start = std::time::Instant::now();
     let debug = debug.unwrap_or(false);
 

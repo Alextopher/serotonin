@@ -1,8 +1,10 @@
-/// This module contains a typed Abstract Syntax Tree for the serotonin language
+//! This module contains a typed Abstract Syntax Tree for the serotonin language
+//! 
+//! Eventually the AST will be broken out into it's own crate to support the creation of more tools
 use lasso::Spur;
 
-use crate::{Span, Token};
 use crate::TokenKind;
+use crate::{Span, Token};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Module {
@@ -12,11 +14,7 @@ pub struct Module {
 }
 
 impl Module {
-    pub fn new(
-        name: Spur,
-        imports: Option<Imports>,
-        definitions: Vec<Definition>,
-    ) -> Self {
+    pub fn new(name: Spur, imports: Option<Imports>, definitions: Vec<Definition>) -> Self {
         Self {
             name,
             imports,
@@ -24,14 +22,17 @@ impl Module {
         }
     }
 
+    /// Returns the modules name
     pub fn name(&self) -> Spur {
         self.name
     }
 
+    /// Returns the modules Imports objects
     pub fn imports(&self) -> Option<&Imports> {
         self.imports.as_ref()
     }
 
+    /// Returns the modules definitions
     pub fn definitions(&self) -> &[Definition] {
         &self.definitions
     }
@@ -72,7 +73,6 @@ impl Imports {
         self.semicolon.clone()
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Definition {
@@ -135,7 +135,6 @@ impl Definition {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Stack {
     l_paren: Token, // Must be LParen
@@ -171,7 +170,6 @@ impl Stack {
         self.r_paren.clone()
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StackArg {
@@ -299,9 +297,6 @@ pub enum BodyInner {
 }
 
 impl BodyInner {
-    /// Construct a InternedToken
-    // pub fn 
-
     pub fn span(&self) -> Span {
         match self {
             BodyInner::Integer(token)
