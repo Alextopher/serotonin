@@ -10,7 +10,7 @@ use codespan_reporting::{
 };
 use colored::Colorize;
 use lasso::RodeoReader;
-use serotonin_parser::{lex, parse_module, Token, TokenData, TokenKind};
+use serotonin_frontend::{lex, parse_module, Token, TokenData, TokenKind};
 
 pub fn lex_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
     let file = file.unwrap_or(

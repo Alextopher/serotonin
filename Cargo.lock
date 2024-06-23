@@ -512,12 +512,11 @@ dependencies = [
  "codespan-reporting",
  "colored",
  "lasso",
- "serotonin-parser",
- "serotonin-semantics",
+ "serotonin-frontend",
 ]
 
 [[package]]
-name = "serotonin-parser"
+name = "serotonin-frontend"
 version = "1.0.0"
 dependencies = [
  "codespan-reporting",
@@ -527,15 +526,6 @@ dependencies = [
  "num",
  "proptest",
  "snailquote",
-]
-
-[[package]]
-name = "serotonin-semantics"
-version = "0.1.0"
-dependencies = [
- "codespan-reporting",
- "lasso",
- "serotonin-parser",
 ]
 
 [[package]]

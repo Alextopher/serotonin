@@ -5,8 +5,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
-serotonin-semantics = { path = "../serotonin-semantics" }
-serotonin-parser = { path = "../serotonin-parser" }
+serotonin-frontend = { path = "../serotonin-frontend" }
 lasso = "0.7"
 colored = "2.1"
 codespan-reporting = "0.11"

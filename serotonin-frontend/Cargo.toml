@@ -1,5 +1,5 @@
 [package]
-name = "serotonin-parser"
+name = "serotonin-frontend"
 version = "1.0.0"
 edition = "2021"
 
