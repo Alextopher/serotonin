@@ -1,4 +1,4 @@
-use lasso::{Rodeo, Spur};
+use lasso::{RodeoReader, Spur};
 use logos::Logos;
 
 use crate::Span;
@@ -58,7 +58,7 @@ impl InternedToken {
         &self.data
     }
 
-    pub fn text<'a>(&'a self, rodeo: &'a Rodeo) -> &'a str {
+    pub fn text<'a>(&'a self, rodeo: &'a RodeoReader) -> &'a str {
         rodeo.resolve(&self.spur)
     }
 }
@@ -94,9 +94,9 @@ pub enum TokenKind {
     #[regex(r#"'[^']*'"#)]
     RawString,
 
-    // Brainfuck block. backticks with any characters inside. No escaping.
+    // BrainFuck block. backticks with any characters inside. No escaping.
     #[regex(r#"`[^`]*`"#)]
-    Brainfuck,
+    BrainFuck,
 
     // Macro input. { } with any characters inside (including newlines). No escaping.
     #[regex(r#"\{[^}]*\}"#)]
@@ -167,7 +167,7 @@ impl TokenKind {
             TokenKind::NamedByte,
             TokenKind::NamedQuotation,
             TokenKind::Identifier,
-            TokenKind::Brainfuck,
+            TokenKind::BrainFuck,
         ]
     }
 

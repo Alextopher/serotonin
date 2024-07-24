@@ -64,7 +64,7 @@ fn create_interned_token(
             let spur = rodeo.get_or_intern(slice);
             TokenData::String(spur)
         }
-        TokenKind::Brainfuck => {
+        TokenKind::BrainFuck => {
             let slice = trim(slice, span)?;
             no_newlines(slice, span)?;
 

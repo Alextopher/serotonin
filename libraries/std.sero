@@ -1,4 +1,5 @@
 ##### STACK MANIPULATION #####
+
 # dup (a -- a a)
 dup == {a -- a a} autoperm!;
 dup (a) == a a;

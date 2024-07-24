@@ -1,5 +1,5 @@
 //! This module contains a typed Abstract Syntax Tree for the serotonin language
-//! 
+//!
 //! Eventually the AST will be broken out into it's own crate to support the creation of more tools
 use lasso::Spur;
 

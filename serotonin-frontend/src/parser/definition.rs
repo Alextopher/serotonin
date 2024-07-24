@@ -75,7 +75,7 @@ impl Parser<'_> {
                 TokenKind::MacroInput,
                 TokenKind::NamedByte,
                 TokenKind::NamedQuotation,
-                TokenKind::Brainfuck,
+                TokenKind::BrainFuck,
                 TokenKind::Identifier,
                 TokenKind::LBracket,
             ]
@@ -95,7 +95,7 @@ impl Parser<'_> {
                     TokenKind::NamedQuotation => {
                         Ok(BodyInner::NamedQuotation(self.next().unwrap()))
                     }
-                    TokenKind::Brainfuck => Ok(BodyInner::Brainfuck(self.next().unwrap())),
+                    TokenKind::BrainFuck => Ok(BodyInner::Brainfuck(self.next().unwrap())),
                     // Identifier either starts a FQN or is an atomic
                     TokenKind::Identifier => {
                         // Identifier could be the start of a fully qualified name or it could be a single identifier

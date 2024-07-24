@@ -14,26 +14,44 @@ pub enum ParseError {
     },
 }
 
+impl ParseError {
+    pub fn code(&self) -> &'static str {
+        use ParseError as PE;
+
+        match self {
+            PE::UnexpectedToken { .. } => "E100",
+            PE::UnexpectedEOF { .. } => "E101",
+        }
+    }
+
+    pub fn message(&self) -> &'static str {
+        use ParseError as PE;
+
+        match self {
+            PE::UnexpectedToken { .. } => "Unexpected Token",
+            PE::UnexpectedEOF { .. } => "Unexpected End of File",
+        }
+    }
+}
+
 impl From<ParseError> for Diagnostic<usize> {
     fn from(error: ParseError) -> Self {
+        let msg = error.message();
+        let code = error.code();
         match error {
             ParseError::UnexpectedToken { found, expected } => {
-                let message = "Error Unexpected Token".to_string();
-                Diagnostic::error()
-                    .with_message(message)
-                    .with_labels(vec![found.span().primary_label(format!(
-                        "Expected {} found {:?}",
-                        expected.into_message(),
-                        found.kind()
-                    ))])
+                Diagnostic::error().with_labels(vec![found.span().primary_label(format!(
+                    "Expected {} found {:?}",
+                    expected.into_message(),
+                    found.kind()
+                ))])
             }
-            ParseError::UnexpectedEOF { eof, expected } => {
-                let message = "Error Unexpected EOF".to_string();
-                Diagnostic::error().with_message(message).with_labels(vec![
-                    eof.primary_label(format!("Expected {} found EOF", expected.into_message()))
-                ])
-            }
+            ParseError::UnexpectedEOF { eof, expected } => Diagnostic::error().with_labels(vec![
+                eof.primary_label(format!("Expected {} found EOF", expected.into_message())),
+            ]),
         }
+        .with_message(msg.to_string())
+        .with_code(code)
     }
 }
 

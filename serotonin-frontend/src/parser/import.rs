@@ -56,6 +56,8 @@ mod tests {
         let mut parser = Parser::new(&tokens, 0);
         let imports = parser.required_imports().unwrap();
 
+        let rodeo = rodeo.into_reader();
+
         // Verify token kinds are correct
         assert_eq!(imports.import_kw().kind(), TokenKind::ImportKW);
         assert_eq!(imports.imports().len(), 3);

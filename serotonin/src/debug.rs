@@ -10,7 +10,7 @@ use codespan_reporting::{
 };
 use colored::Colorize;
 use lasso::RodeoReader;
-use serotonin_frontend::{lex, parse_module, Token, TokenData, TokenKind};
+use serotonin_frontend::{lex, parse_module, SemanticAnalyzer, Token, TokenData, TokenKind};
 
 pub fn lex_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
     let file = file.unwrap_or(
@@ -93,7 +93,7 @@ fn pretty_print(tokens: &[Token], reader: &RodeoReader) -> String {
                 let s = match token.kind() {
                     TokenKind::String => format!("\"{}\"", reader.resolve(s)).green(),
                     TokenKind::RawString => format!("\"{}\"", reader.resolve(s)).green(),
-                    TokenKind::Brainfuck => format!("`{}`", reader.resolve(s)).yellow(),
+                    TokenKind::BrainFuck => format!("`{}`", reader.resolve(s)).yellow(),
                     TokenKind::MacroInput => format!("{{{}}}", reader.resolve(s)).yellow(),
                     TokenKind::NamedByte | TokenKind::NamedQuotation => {
                         reader.resolve(s).cyan().bold()
@@ -160,27 +160,32 @@ pub fn parse_debug(file: Option<String>, bench: bool, debug: Option<bool>) {
     }
 
     // Parse
-    match parse_module(&tokens, file_id, rodeo.get_or_intern("std")) {
+    let module = match parse_module(&tokens, file_id, rodeo.get_or_intern("std")) {
         Ok((module, warnings)) => {
             if bench {
                 println!("Parsing took {:?}", start.elapsed());
                 return;
             }
 
-            if debug {
-                println!("{:#?}", module);
-            } else {
-                println!("{:?}", module);
-            }
-
             for warning in warnings {
                 term::emit(&mut writer.lock(), &config, &files, &warning).unwrap();
             }
+
+            module
         }
         Err(error) => {
             let diagnostic: Diagnostic<usize> = error.into();
 
             term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
+            return;
         }
-    }
+    };
+
+    let rodeo = rodeo.into_reader();
+
+    // Semantic analysis
+    let mut analyzer = SemanticAnalyzer::new(&rodeo);
+    analyzer.analyze(&module);
+
+    println!("{}", analyzer.symbol_table());
 }

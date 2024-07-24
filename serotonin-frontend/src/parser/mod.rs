@@ -1,3 +1,5 @@
+pub mod ast;
+
 mod definition;
 mod errors;
 mod import;

@@ -4,10 +4,7 @@ use codespan_reporting::diagnostic::Diagnostic;
 use colored::Colorize;
 use snailquote::UnescapeError;
 
-use crate::Span;
-
-const ICE_NOTE: &str =
-    "This is a compiler error and should not have happened. Please report this as a bug.";
+use crate::{Span, ICE_NOTE};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenizerError {

@@ -1,87 +1,93 @@
 # Language Description
 
-Serotonin is a _toy_ stacked-based programming language designed to compile to Brainfuck. It is inspired by Joy and I attempt to take advantage of the happiness you find in declarative programming languages in the Brainfuck world. In contrast to that idea, I am not interested in hiding away the details of Brainfuck, both languages are very limiting.
+Serotonin is a _toy_ stacked-based programming language designed to compile to BrainFuck. It is inspired by Joy and I attempt to take advantage of the happiness you find in declarative programming languages in the BrainFuck world. In contrast to that idea, I am not interested in hiding away the details of BrainFuck, both languages are very limiting.
 
-## Rewriting system
-TODO
-At the core of Serotonin is its rewriting system.
+This document goes into the background to motivate the existence of the language.
+
+## Background
+
+### Rewriting System
+
+At the core of Serotonin is its rewriting system. Rather than preforming any sophisticated intermediate representation Serotonin recursively _rewrites_ functions with pre-defined alternatives that bring the final output closer to BrainFuck.
+
+Mathematics is built on top of rewriting systems, grade school arithmetic is an example. Take for example the expression:
 
 ```text
 3 * (5 + 2)
 ```
 
-We learn a set of rules we can apply to simplify this expression. One possible simplification is:
+We can 'simplify' (reduce) this expression using common rewriting rules.
 
-| expression  | rewrite                       | rule                  |
-|-------------|-------------------------------|-----------------------|
-| 3 * (5 + 2) | a * (b + c) = a \* b + a \* c | distributive property |
-| 3 \* 5 + 3 \* 2 | 3 * 5 = 15                | multiplication        |
-| 15 + 3 * 2  | 3 * 2 = 6                     | multiplication        |
-| 15 + 6      | 15 + 6 = 21                   | addition              |
-| 21          | done                          |                       |
+| expression      | rule                           |
+|-----------------|--------------------------------|
+| 3 * (5 + 6)     | 5 + 6 = 11                     |
+| 3 * (11)        | (x) = x                        |
+| 3 * 11          | 3 * 11 = 33                    |
+| 33              | done                           |
 
-Another is
+Another such simplification is:
 
-| expression  | rewrite    | rule           |
-|-------------|------------|----------------|
-| 3 * (5 + 2) | 5 + 2 = 7  | addition       |
-| 3 * (7)     | (x) = x    | unwraping      |
-| 3 * 7       | 3 * 7 = 21 | multiplication |
-| 21          | done       |                |
+| expression      | rule                           |
+|-----------------|--------------------------------|
+| 3 * (5 + 6)     | a \* (b + c) = a \* b + a \* c |
+| 3 \* 5 + 3 \* 6 | 3 * 5 = 15                     |
+| 15 + 3 * 2      | 3 * 6 = 18                     |
+| 15 + 6          | 15 + 18 = 33                   |
+| 33              | done                           |
 
-One way we can get into trouble with algebra is precedence. There is an agreed-upon order where we must prefer some rules over others. For example, rules that apply multiplication must be done before addition, and terms inside parentheses should be simplified first. In school, I was taught mnemonics to remember this order. **P**lease **E**xcuse **M**y **D**ear **A**unt **S**ally, parentheses - exponents - multiplication - division - addition - subtraction. Anyone who has learned algebra, or who has tried to write a compiler, knows precedence is tricky. It would be nice if we could remove almost all precedence rules while still being able to unambiguously simplify an expression.
+Serotonin is also backed by a rewriting system where our all our functions (operators) eventually get rewritten into BrainFuck code.
 
-## Postfix notation
-
-Rather than inserting our operators between the operands we can make things simpler by putting the operators _after_ the operands. For example, our expression can be rewritten as:
-
-```text
-3 5 2 + *
+```sero
+# 3 * (5 + 6)
+main == 3 5 6 + * print;
+# 3 == `>+++`
+main == `>+++` 5 6 + * print;
+# 5 == `>+++++`
+main == `>+++` `>+++++` 6 + * print;
+# 6 == `>++++++`
+main == `>+++` `>+++++` `>++++++` + * print;
+# + == `[-<+>]<`
+main == `>+++` `>+++++` `>++++++` `[-<+>]<` * print;
+# * == `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<`;
+main == `>+++` `>+++++` `>++++++` `[-<+>]<` `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<` print;
+# print == `.`
+main == `>+++` `>+++++` `>++++++` `[-<+>]<` `<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<` `.`;
+# concatenate
+main == `>+++>+++++>++++++[-<+>]<<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<.`;
 ```
 
-This is a series of stack functions. Which is to say each function takes as input a stack and returns a stack. For example, `3` is a function that takes a stack `S` and returns `S 3`, or using a stack effect diagram we say `3` is this function:
+Serotonin is syntax and rules for creating a rewriting system, that when executed, produces BrainFuck programs.
 
-```text
--- 3
-```
+### Postfix Notation
 
-Where the left-hand side of the `--` are the elements _pop'd_ from the stack and the right-hand side are the elements _pushed_ to the stack. You could think of this as the left having operands and the right having results. So addition could be `a b -- a+b`, where it takes 2 elements off that stack, the two terms, and it returns the sum.
+In the Serotonin program, you may have noticed that we wrote `3 * (5 + 6)` as `3 5 6 + *`. This is known as "postfix notation," in contrast to the more familiar "infix notation." The term "postfix" comes from Latin, meaning "after," indicating that operators are placed after their operands. In contrast, infix notation places operators between operands (prefix notation would be `* 3 + 5 6`). The use of postfix notation is a key feature of stack-based programming languages. Firstly, all expressions can be represented unambiguously without parentheses, as there is no concept of operator precedence. Anyone familiar with compilers can attest that handling precedence is cumbersome. Secondly, postfix expressions are directly executable by stack machines: numbers are pushed onto the stack, and operators pop operands off the stack before pushing the results back on.
 
-To simplify this expression we only need to repeatedly execute each instruction.
-
-| stack | instructions | next function |
+| Stack | Instructions | Next Function |
 |-------|--------------|---------------|
-| empty | `3 5 2 + *`  | push 3        |
-| 3     | `5 2 + *`    | push 5        |
-| 3 5   | `2 + *`      | push 2        |
-| 3 5 2 | `+ *`        | +             |
-| 3 7   | `*`          | *             |
-| 21    |              | done          |
+| empty | `3 5 6 + *`  | push 3        |
+| 3     | `5 6 + *`    | push 5        |
+| 3 5   | `6 + *`      | push 6        |
+| 3 5 6 | `+ *`        | add           |
+| 3 11  | `*`          | multiply      |
 
-Now to compile this expression to Brainfuck we define how to rewrite instructions (stack functions) to equivalent BF code.
+### But why stacks?
 
-| function    | equivalent brainfuck |
-|-------------|----------------------|
-| push 3      | >+++                 |
-| push 5      | >+++++               |
-| push 2      | >++                  |
-| +           | [-<+>]<              |
-| *           | <[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<< |
+TODO
 
-And now, using simple concatenation the resulting program is
+## Serotonin Language
 
-```text
->+++>+++++>++[-<+>]<<[>[>+>+<<-]>>[<<+>>-]<<<-]>[-]>[-<<+>>]<<
-```
+Serotonin has a few key features that make it unique. In addition to the simple substitution rewriting rules Serotonin has compile-time meta-programming and execution rewriting rules, allowing for complex optimizations and control flow. To support these features, Serotonin has a concept of 'constraints' that allow us to implement functions with multiple rules depending on the context.
 
-## Rewriting rules
+### Compile-time Meta-programming
 
-In Serotonin, there are 3 kinds of rewriting rules. A single term can have multiple rewrite rules as long as they have independent _constraints_. Rewrites defined _last_ have higher precedence, assuming the constraints match. More on constraints later.
+There are 3 kinds of rewriting rules in Serotonin: "Substitution", "Generation" (meta-programming), and "Execution" (const-expr). Initial implementations of Serotonin only had substitution rules, as they are the most necessary. However, as I worked on the standard library I learned that BrainFuck programs can optimize very well when we're able to make assertions. Take for example `+`, the classic algorithm `[-<+>]<` requires a loop that iteratively decrements the top of stack and increments the element under, until the top of stack is zero. These loops are expensive and become much worse when considering `*` or `dupn`.
+
+Generation rules are used to create optimized implementations of  
 
 | Rewrite      | Symbol | Meaning                                                                                            |
 |:-------------|:-------|:---------------------------------------------------------------------------------------------------|
 | Substitution | `==`   | Replaces the term on the left with the terms on the right.                                         |
-| Generation   | `==?`  | Executes the right-hand side, then replaces the left with the result treated as a Brainfuck block. |
+| Generation   | `==?`  | Executes the right-hand side, then replaces the left with the result treated as a BrainFuck block. |
 | Execution    | `==!`  | Executes the right-hand side, then replaces the left with the result treated as constant bytes.    |
 
 For example, the standard library addition function has the following rewrite rules.
@@ -91,6 +97,43 @@ For example, the standard library addition function has the following rewrite ru
 + == `[-<+>]<`; # Substitution
 + (b) ==? '+' b dupn sprint; # Generation
 + (a b) ==! a b + pop; # Execution
+```
+
+### Constraints
+
+Without constraints, every function could only have a single rule, and functions like `while` would be impossible to write. Constraints define special case rules for functions that can be applied via monomorphization. Constraints are often used when writing quality libraries. Here is the current list of available constraints:
+
+| Constraint | Meaning |
+|--------|---------|
+| Lower Case Ascii. ie `a` | a byte we've named. we can match against |
+| `@`                      | a byte we don't care to name |
+| Number. ie `0`           | a byte that perfectly matches the number |
+| Upper Case Ascii. ie `S` | a quotation we've given a name. we could match against |
+| `?`                      | a quotation we haven't named |
+| `[...]`                  | a quotation that is equivalent to what is between the braces |
+
+Here are some examples of how to use constraints. Remember, the least preferred rule is written first. You may want to read bottom to top.
+
+```text
+true == 1;
+false == 0;
+
+# eq (a b -- a==b)
+eq == `<[->-<]+>[<->[-]]<`;
+eq (a b) == false;
+eq (a a) == true;
+eq (0) == zeq;         
+# this says "read 0 eq => read zeq"
+
+# zeq (a -- a==0)
+zeq == `>+<[>[-]<[-]]>[-<+>]<`;
+zeq (@) == false;
+zeq (0) == true;
+
+# {condition}[{body}{condition}]
+while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
+while ([true] B) ==? '[' B ']<' sprint;
+while ([false] ?) == ; # dead code elimination !
 ```
 
 ### Substitution
@@ -178,43 +221,6 @@ Compared to without any optimization
 
 ```text
 >++>++[-<+>]<.
-```
-
-## Constraints
-
-Without constraints, every function could only have a single rule, and functions like `while` would be impossible to write. Constraints define special case rules for functions that can be applied via monomorphization. Constraints are often used when writing quality libraries. Here is the current list of available constraints:
-
-| Constraint | Meaning |
-|--------|---------|
-| Lower Case Ascii. ie `a` | a byte we've named. we can match against |
-| `@`                      | a byte we don't care to name |
-| Number. ie `0`           | a byte that perfectly matches the number |
-| Upper Case Ascii. ie `S` | a quotation we've given a name. we could match against |
-| `?`                      | a quotation we haven't named |
-| `[...]`                  | a quotation that is equivalent to what is between the braces |
-
-Here are some examples of how to use constraints. Remember, the least preferred rule is written first. You may want to read bottom to top.
-
-```text
-true == 1;
-false == 0;
-
-# eq (a b -- a==b)
-eq == `<[->-<]+>[<->[-]]<`;
-eq (a b) == false;
-eq (a a) == true;
-eq (0) == zeq;         
-# this says "read 0 eq => read zeq"
-
-# zeq (a -- a==0)
-zeq == `>+<[>[-]<[-]]>[-<+>]<`;
-zeq (@) == false;
-zeq (0) == true;
-
-# {condition}[{body}{condition}]
-while (C B) ==? C '[' sprint B sprint C ']<' sprint; 
-while ([true] B) ==? '[' B ']<' sprint;
-while ([false] ?) == ; # dead code elimination !
 ```
 
 ## Macros
