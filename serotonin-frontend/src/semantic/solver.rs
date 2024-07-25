@@ -111,7 +111,7 @@ impl Constraint {
     pub fn contains(&self, element: &[u8]) -> bool {
         for (e, constraint) in element.iter().zip(self.0.iter()) {
             match constraint {
-                PositionalConstraint::AnyByte => continue,
+                PositionalConstraint::AnyByte => {},
                 PositionalConstraint::Positional(i) => {
                     if *e != element[*i] {
                         return false;
@@ -129,10 +129,6 @@ impl Constraint {
     }
 
     /// Reduces the constraint by one element, by optionally assigning the first element to a specific value.
-    ///
-    /// This is beta-reduction,
-    ///    C(a, b, c) -> C(b, c)
-    ///    C(a, b, a) -> C(b, 0) if a is 0
     pub fn reduce(&self, value: Option<u8>) -> Constraint {
         use PositionalConstraint as PC;
 
@@ -140,30 +136,29 @@ impl Constraint {
             return self.clone();
         }
 
-        let mut constraints = vec![PC::AnyByte; self.0.len() - 1];
-        for (i, c) in self.0.iter().skip(1).enumerate() {
-            constraints[i] = match c {
-                PC::Positional(0) => value.map_or(PC::AnyByte, PC::ExactValue),
-                PC::Positional(n) => PC::Positional(n - 1),
-                _ => *c,
-            };
-        }
+        let k = self.0.iter().skip(1).position(|c| matches!(c, PC::Positional(0)));
+        let constraints = 
+                self.0.iter().skip(1).map(|c| match c {
+                    PC::Positional(0) => value.map_or_else(|| PC::Positional(k.unwrap()), PC::ExactValue),
+                    PC::Positional(n) => PC::Positional(n - 1),
+                    _ => *c,
+                }).collect::<Vec<_>>();
 
         Constraint(constraints)
     }
 
     /// Returns the length of the constraint
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 
     /// Returns if the constraint is empty
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     /// Returns an iterator over the positional constraints
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &PositionalConstraint> {
+    pub fn iter(&self) -> impl Iterator<Item = &PositionalConstraint> {
         self.0.iter()
     }
 }
@@ -305,11 +300,11 @@ mod tests {
             (vec![PC::AnyByte, PC::AnyByte], None, vec![PC::AnyByte]),
             // C(@, @) x 0 -> C(@)
             (vec![PC::AnyByte, PC::AnyByte], Some(0), vec![PC::AnyByte]),
-            // C(a, a) x @ -> C(@)
+            // C(a, a) x @ -> C(a)
             (
                 vec![PC::Positional(0), PC::Positional(0)],
                 None,
-                vec![PC::AnyByte],
+                vec![PC::Positional(0)],
             ),
             // C(a, a) x 0 -> C(0)
             (
@@ -329,12 +324,33 @@ mod tests {
                 Some(0),
                 vec![PC::Positional(0)],
             ),
+            // C(a, a, a) X @ -> C(a, a)
+            (
+                vec![PC::Positional(0), PC::Positional(0), PC::Positional(0)],
+                None,
+                vec![PC::Positional(0), PC::Positional(0)],
+            ),
+            // C(a, b, a, a) x @ -> C(b, a, a)
+            (
+                vec![
+                    PC::Positional(0),
+                    PC::Positional(1),
+                    PC::Positional(0),
+                    PC::Positional(0),
+                ],
+                None,
+                vec![
+                    PC::Positional(0),
+                    PC::Positional(1),
+                    PC::Positional(1),
+                ],
+            ),
         ];
 
         for (input, value, expected) in tests {
-            let c = Constraint::new(input);
+            let c = Constraint::new(input.clone());
             let reduced = c.reduce(value);
-            assert_eq!(reduced, Constraint::new(expected));
+            assert_eq!(reduced, Constraint::new(expected.clone()), "Failed for {:?} {:?} {:?}", input, value, expected);
         }
     }
 
