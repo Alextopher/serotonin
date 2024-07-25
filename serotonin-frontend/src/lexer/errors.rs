@@ -160,10 +160,7 @@ mod debug {
     use codespan_reporting::{
         diagnostic::Diagnostic,
         files::SimpleFiles,
-        term::{
-            self,
-            termcolor::{ColorChoice, StandardStream},
-        },
+        term,
     };
 
     use crate::Span;
@@ -171,11 +168,11 @@ mod debug {
     use super::TokenizerError;
 
     fn print_error(files: SimpleFiles<&str, &str>, err: TokenizerError) {
-        let writer = StandardStream::stdout(ColorChoice::Always);
+        let mut writer = std::io::sink();
         let config = codespan_reporting::term::Config::default();
 
         let diagnostic: Diagnostic<usize> = err.into();
-        term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
+        term::emit(&mut writer, &config, &files, &diagnostic).unwrap();
     }
 
     #[test]
