@@ -63,7 +63,7 @@ impl std::fmt::Display for SymbolTable<'_> {
         for (module, table) in &self.symbols {
             writeln!(f, "Module: {}", self.rodeo.resolve(module))?;
 
-            for (_symbol, definitions) in table {
+            for definitions in table.values() {
                 for (definition, constraints) in definitions {
                     // write the definition name on 1 line, then a list of constraints on the next
                     write!(f, "  {}", self.rodeo.resolve(&definition.name().spur()))?;
