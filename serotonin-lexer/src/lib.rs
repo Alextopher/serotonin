@@ -11,3 +11,6 @@ pub use span::Span;
 pub use token::{InternedToken, TokenData, TokenKind};
 
 pub type Token = Rc<InternedToken>;
+
+pub const ICE_NOTE: &str =
+    "This is a compiler error and should not have happened. Please report this as a bug.";

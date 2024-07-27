@@ -248,12 +248,9 @@ mod test {
     use proptest::prelude::*;
 
     use crate::{
-        lexer::{
-            lex::{ascii_only, lex_hex, lex_integer, no_newlines},
-            token::TokenKind,
-            TokenizerError,
-        },
-        Span,
+        lex::{ascii_only, lex_hex, lex_integer, no_newlines},
+        token::TokenKind,
+        Span, TokenizerError,
     };
 
     proptest! {

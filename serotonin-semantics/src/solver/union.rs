@@ -143,7 +143,7 @@ impl Union {
 
 #[cfg(test)]
 mod tests {
-    use crate::semantic::solver::{positional::PositionalConstraint, Constraint, Union};
+    use crate::solver::{positional::PositionalConstraint, Constraint, Union};
 
     /// Property test: Union::add(_) always returns true if the union is empty
     #[test]

@@ -9,10 +9,9 @@ mod stack;
 use codespan_reporting::diagnostic::Diagnostic;
 use lasso::Spur;
 
-use crate::{
-    ast::{Definition, Module},
-    Span, Token, TokenKind,
-};
+use crate::ast::{Definition, Module};
+
+use serotonin_lexer::{Span, Token, TokenKind};
 
 use errors::ParseError;
 

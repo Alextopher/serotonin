@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use lasso::{RodeoReader, Spur};
 
-use crate::ast::Definition;
+use serotonin_parser::ast::Definition;
 
 use super::solver::Constraint;
 

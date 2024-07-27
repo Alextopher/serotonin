@@ -1,0 +1,10 @@
+[package]
+name = "serotonin-parser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serotonin-lexer = { path = "../serotonin-lexer" }
+
+codespan-reporting = "0.11.1"
+lasso = "0.7.2"

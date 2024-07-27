@@ -1,6 +1,6 @@
 use codespan_reporting::diagnostic::Diagnostic;
 
-use crate::{Span, Token, ICE_NOTE};
+use serotonin_lexer::{Span, Token, ICE_NOTE};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SemanticError {

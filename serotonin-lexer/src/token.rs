@@ -246,7 +246,7 @@ mod test {
     use logos::Logos;
     use proptest::prelude::*;
 
-    use crate::lexer::token::TokenKind;
+    use crate::token::TokenKind;
 
     proptest! {
         #[test]

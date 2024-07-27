@@ -134,10 +134,10 @@ impl Parser<'_> {
 mod test {
     use crate::{
         ast::{BodyInner, Stack, StackArg},
-        lexer,
-        parser::Parser,
-        TokenKind,
+        Parser,
     };
+
+    use serotonin_lexer::TokenKind;
 
     #[test]
     fn simple_quotation() {
@@ -145,7 +145,7 @@ mod test {
 
         let text = "[1 2 3 ]";
 
-        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        let (tokens, emits) = serotonin_lexer::lex(text, 0, &mut rodeo);
         assert!(emits.is_empty());
 
         let mut parser = Parser::new(&tokens, 0);
@@ -181,7 +181,7 @@ mod test {
 
         let text = "[[1 2 3] [4 5 6] [7 8 9]]";
 
-        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        let (tokens, emits) = serotonin_lexer::lex(text, 0, &mut rodeo);
         assert!(emits.is_empty());
 
         let mut parser = Parser::new(&tokens, 0);
@@ -255,7 +255,7 @@ mod test {
         let mut rodeo = Default::default();
 
         let text = "dup (a) == a a;";
-        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        let (tokens, emits) = serotonin_lexer::lex(text, 0, &mut rodeo);
         assert!(emits.is_empty());
 
         let mut parser = Parser::new(&tokens, 0);

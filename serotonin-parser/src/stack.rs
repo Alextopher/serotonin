@@ -69,9 +69,7 @@ mod tests {
 
     use crate::{
         ast::{Body, BodyInner, Quotation, StackArg},
-        lexer,
-        parser::Parser,
-        Span, TokenKind,
+        Parser, Span, TokenKind,
     };
 
     #[test]
@@ -79,7 +77,7 @@ mod tests {
         let mut rodeo = Rodeo::default();
 
         let input = "(a b c)";
-        let (tokens, _) = lexer::lex(input, 0, &mut rodeo);
+        let (tokens, _) = serotonin_lexer::lex(input, 0, &mut rodeo);
 
         let mut parser = Parser::new(&tokens, 0);
         let stack = parser.required_stack().unwrap();
@@ -106,7 +104,7 @@ mod tests {
         let mut rodeo = Rodeo::default();
 
         let input = "(a 0 @ S [true] ?)";
-        let (tokens, _) = lexer::lex(input, 0, &mut rodeo);
+        let (tokens, _) = serotonin_lexer::lex(input, 0, &mut rodeo);
 
         let mut parser = Parser::new(&tokens, 0);
         let stack = parser.required_stack().unwrap();

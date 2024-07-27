@@ -1,0 +1,15 @@
+[package]
+name = "serotonin-semantics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serotonin-lexer = { path = "../serotonin-lexer" }
+serotonin-parser = { path = "../serotonin-parser" }
+
+codespan-reporting = "0.11.1"
+either = "1.13.0"
+lasso = "0.7.2"
+
+[dev-dependencies]
+rand = "0.8.5"

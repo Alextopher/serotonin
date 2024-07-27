@@ -43,7 +43,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{lexer, parser::errors::Expectations, Span};
+    use crate::{errors::Expectations, Span};
 
     use super::*;
 
@@ -51,7 +51,7 @@ mod tests {
     fn test_imports() {
         let mut rodeo = Default::default();
 
-        let (tokens, emits) = lexer::lex("IMPORT std foo bar;", 0, &mut rodeo);
+        let (tokens, emits) = serotonin_lexer::lex("IMPORT std foo bar;", 0, &mut rodeo);
         assert!(emits.is_empty());
         let mut parser = Parser::new(&tokens, 0);
         let imports = parser.required_imports().unwrap();
@@ -96,7 +96,7 @@ mod tests {
 
         let text = "IMPORT std foo bar";
 
-        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        let (tokens, emits) = serotonin_lexer::lex(text, 0, &mut rodeo);
         assert!(emits.is_empty());
 
         let mut parser = Parser::new(&tokens, 0);
@@ -118,7 +118,7 @@ mod tests {
 
         let text = "IMPORT ;";
 
-        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        let (tokens, emits) = serotonin_lexer::lex(text, 0, &mut rodeo);
         assert!(emits.is_empty());
 
         let mut parser = Parser::new(&tokens, 0);
@@ -134,7 +134,7 @@ mod tests {
 
         let text = "IMPORT std foo bar 123;";
 
-        let (tokens, emits) = lexer::lex(text, 0, &mut rodeo);
+        let (tokens, emits) = serotonin_lexer::lex(text, 0, &mut rodeo);
         assert!(emits.is_empty());
 
         let mut parser = Parser::new(&tokens, 0);

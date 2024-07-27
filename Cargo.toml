@@ -2,5 +2,5 @@
 resolver = "2"
 members = [
     "serotonin-frontend",
-    "serotonin",
+    "serotonin", "serotonin-lexer", "serotonin-parser", "serotonin-semantics",
 ]

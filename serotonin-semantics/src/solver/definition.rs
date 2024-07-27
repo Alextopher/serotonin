@@ -240,7 +240,7 @@ impl Constraint {
 
 #[cfg(test)]
 mod test {
-    use crate::semantic::solver::{positional::PositionalConstraint as PC, Constraint, Reduction};
+    use crate::solver::{positional::PositionalConstraint as PC, Constraint, Reduction};
 
     fn make_tests() -> Vec<(Vec<PC>, Reduction, Vec<PC>)> {
         vec![

@@ -3,8 +3,7 @@
 //! Eventually the AST will be broken out into it's own crate to support the creation of more tools
 use lasso::Spur;
 
-use crate::TokenKind;
-use crate::{Span, Token};
+use serotonin_lexer::{Span, Token, TokenKind};
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Module {
