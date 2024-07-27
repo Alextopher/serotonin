@@ -5,7 +5,6 @@ use symbol::SymbolTable;
 
 use crate::ast::{Definition, Module};
 
-// mod constraints;
 mod errors;
 mod solver;
 mod symbol;
