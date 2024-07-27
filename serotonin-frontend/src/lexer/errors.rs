@@ -156,12 +156,8 @@ impl From<TokenizerError> for Diagnostic<usize> {
 
 // Test the output of every error
 #[cfg(test)]
-mod debug {
-    use codespan_reporting::{
-        diagnostic::Diagnostic,
-        files::SimpleFiles,
-        term,
-    };
+mod test {
+    use codespan_reporting::{diagnostic::Diagnostic, files::SimpleFiles, term};
 
     use crate::Span;
 
